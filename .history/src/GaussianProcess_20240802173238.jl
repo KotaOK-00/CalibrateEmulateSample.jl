@@ -58,9 +58,9 @@ $(DocStringExtensions.TYPEDFIELDS)
 """
 struct GaussianProcess{GPPackage, FT} <: MachineLearningTool
     "The Gaussian Process (GP) Regression model(s) that are fitted to the given input-data pairs."
-    models::Vector{Union{<:GaussianProcesses.GPE, <:PyObject, <:AbstractGPs.PosteriorGP, Nothing}}
+    models::Vector{Union{<:GaussianProcesses.GPE, <:PyObject, Nothing}}
     "Kernel object."
-    kernel::Union{<:GaussianProcesses.Kernel, <:PyObject, <:AbstractGPs.Kernel, Nothing}
+    kernel::Union{<:Kernel, <:PyObject, Nothing}
     "Learn the noise with the White Noise kernel explicitly?"
     noise_learn::Bool
     "Additional observational or regularization noise in used in GP algorithms"
@@ -82,14 +82,14 @@ $(DocStringExtensions.TYPEDSIGNATURES)
 """
 function GaussianProcess(
     package::GPPkg;
-    kernel::Union{GPK, KPy, AGPK, Nothing} = nothing,
+    kernel::Union{K, KPy, Nothing} = nothing,
     noise_learn = true,
     alg_reg_noise::FT = 1e-3,
     prediction_type::PredictionType = YType(),
-) where {GPPkg <: GaussianProcessesPackage, GPK <: GaussianProcesses.Kernel, KPy <: PyObject, AGPK <: AbstractGPs.Kernel, FT <: AbstractFloat}
+) where {GPPkg <: GaussianProcessesPackage, K <: Kernel, KPy <: PyObject, FT <: AbstractFloat}
 
     # Initialize vector for GP models
-    models = Vector{Union{<:GaussianProcesses.GPE, <:PyObject, <:AbstractGPs.PosteriorGP, Nothing}}(undef, 0)
+    models = Vector{Union{<:GaussianProcesses.GPE, <:PyObject, Nothing}}(undef, 0)
 
     # the algorithm regularization noise is set to some small value if we are learning noise, else
     # it is fixed to the correct value (1.0)
@@ -307,7 +307,7 @@ end
 
 #We build the AGPJL implementation
 function build_models!(
-    gp::GaussianProcess{AGPJL},
+    gp::GaussianProcess{SKLJL},
     input_output_pairs::PairedDataContainer{FT},
 ) where {FT <: AbstractFloat}
     # get inputs and outputs
@@ -327,9 +327,10 @@ function build_models!(
         println("Using default squared exponential kernel, learning length scale and variance parameters")
         # Create default squared exponential kernel
         const_value = 1.0
-        rbf_len = 1.0
-        rbf = const_value * KernelFunctions.SqExponentialKernel() ∘ KernelFunctions.ScaleTransform(rbf_len)
-        kern = rbf
+        var_kern = pykernels.ConstantKernel(constant_value = const_value, constant_value_bounds = (1e-5, 1e4))
+        rbf_len = ones(size(input_values, 2))
+        rbf = pykernels.RBF(length_scale = rbf_len, length_scale_bounds = (1e-5, 1e4))
+        kern = var_kern * rbf
         println("Using default squared exponential kernel:", kern)
     else
         kern = deepcopy(gp.kernel)
@@ -339,53 +340,28 @@ function build_models!(
     if gp.noise_learn
         # Add white noise to kernel
         white_noise_level = 1.0
-        white = KernelFunctions.WhiteKernel(white_noise_level)
-        kern += white
+        white = pykernels.WhiteKernel(noise_level = white_noise_level, noise_level_bounds = (1e-05, 10.0))
+        kern = kern + white
         println("Learning additive white noise")
     end
 
     regularization_noise = gp.alg_reg_noise
-    println("size of regularization_noise: ", size(regularization_noise))
-
-    println("size of input_values: ", size(input_values))
-    println("size of output_values: ", size(output_values))
 
     for i in 1:N_models
         kernel_i = deepcopy(kern)
-        # In contrast to the GPJL and SKLJL case "data_i = output_values[i, :]"
-        data_i = output_values[:, i]
-        f = AbstractGPs.GP(kernel_i)
-        println("size of data_i: ", size(data_i)) # delete
-        println("size of transposed data_i: ", size(data_i')) # delete
-        # f arguments:
+        data_i = output_values[i, :]
+        m = pyGP.GaussianProcessRegressor(kernel = kernel_i, n_restarts_optimizer = 10, alpha = regularization_noise)
+
+        # ScikitLearn.fit! arguments:
         # input_values:    (N_samples × input_dim)
-        fx = f(input_values, regularization_noise)
-        println("size of fx: ", size(fx)) # delete
-        # posterior arguments:
         # data_i:    (N_samples,)
-        post_fx = posterior(fx, data_i)
+        ScikitLearn.fit!(m, input_values, data_i)
         if i == 1
-            println(kernel_i)
+            println(m.kernel.hyperparameters)
             print("Completed training of: ")
         end
         println(i, ", ")
-        push!(models, post_fx)
-        println(post_fx)
+        push!(models, m)
+        println(m.kernel)
     end
-end
-
-#Optimisation
-#function optimize_hyperparameters!(gp::GaussianProcess{AGPJL}, args...; kwargs...)
-#    println("SKlearn, already trained. continuing...")
-#end
-
-function predict(gp::GaussianProcess{AGPJL}, new_inputs::AbstractMatrix{FT}) where {FT <: AbstractFloat}
-    pred_gp = gp.models[1] # optimised before this
-    # mean_and_var(fx) == (mean(fx), var(fx))
-        # var(fx) == diag(cov(fx))
-    μ, σ2 = mean_and_var(pred_gp(new_inputs'))
-
-    σ2[:, :] .= σ2[:, :] .+ gp.alg_reg_noise
-
-    return μ, σ2
 end
