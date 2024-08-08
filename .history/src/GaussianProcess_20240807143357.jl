@@ -164,6 +164,7 @@ function build_models!(
 
         # Instantiate GP model
         m = GaussianProcesses.GPE(input_values, output_values[i, :], kmean, kernel_i, logstd_regularization_noise)
+
         println("created GP: ", i)
         push!(models, m)
 
@@ -367,15 +368,14 @@ function build_models!(
             println(kernel_i)
             print("Completed training of: ")
         end
-        println("created GP: ", i)
+        println(i, ", ")
         push!(models, post_fx)
         println(post_fx)
     end
 end
 
 #Optimisation
-function optimize_hyperparameters!(
-    gp::GaussianProcess{AGPJL}, args...; kwargs...)
+function optimize_hyperparameters!(gp::GaussianProcess{AGPJL}, args...; kwargs...)
     # `kwargs`: Keyword arguments for the optimize function from the Optim package
     N_models = length(gp.models)
     for i in 1:N_models
@@ -387,32 +387,16 @@ function optimize_hyperparameters!(
     end
 end
 
-function predict(
-    gp::GaussianProcess{AGPJL},
-    new_inputs::AbstractMatrix{FT}
-) where {FT <: AbstractFloat}
-    println("size of gp.models: ", size(gp.models))
-
-    println("size of new_inputs: ", size(new_inputs))
-    println("size of new_inputs transpose: ", size(new_inputs'))
-    t_new_inputs = new_inputs'
-    println("size of new_inputs transpose: ", size(t_new_inputs))
-
-    N_models = length(gp.models)
-    println("N_models: ", N_models)
-    N_samples = size(new_inputs, 2)
-    println("N_samples: ", N_samples)
-    μ = zeros(N_samples, N_models)
-    σ2 = zeros(N_samples, N_models)
-
-    for i in 1:N_models
-        pred_gp = gp.models[i]
-        μ[:, i], σ2[:, i] = mean_and_var(pred_gp(t_new_inputs))
-    end
-
+function predict(gp::GaussianProcess{AGPJL}, new_inputs::AbstractMatrix{FT}) where {FT <: AbstractFloat}
+    pred_gp = gp.models[1] # optimised before this
+    println("size of gp.models", size(gp.models))
+    println("length of pred_gp", length(pred_gp))
+    println("type of pred_gp", typeof(pred_gp))
     # mean_and_var(fx) == (mean(fx), var(fx))
         # var(fx) == diag(cov(fx))
-    # μ, σ2 = mean_and_var(pred_gp(new_inputs'))
+    println("size of new_inputs", size(new_inputs))
+    println("size of new_inputs transpose", size(new_inputs'))
+    μ, σ2 = mean_and_var(pred_gp(new_inputs'))
     println("mean", μ)
     println("var", σ2)
 

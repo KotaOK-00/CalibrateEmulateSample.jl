@@ -407,7 +407,7 @@ function predict(
 
     for i in 1:N_models
         pred_gp = gp.models[i]
-        μ[:, i], σ2[:, i] = mean_and_var(pred_gp(t_new_inputs))
+        μ[:, i], σ2[:, i] = mean_and_var(pred_gp(t_new_inputs[:, i]))
     end
 
     # mean_and_var(fx) == (mean(fx), var(fx))

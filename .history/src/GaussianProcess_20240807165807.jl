@@ -395,19 +395,16 @@ function predict(
 
     println("size of new_inputs: ", size(new_inputs))
     println("size of new_inputs transpose: ", size(new_inputs'))
-    t_new_inputs = new_inputs'
-    println("size of new_inputs transpose: ", size(t_new_inputs))
 
+    f_post_mean = mean(gp.models(new_inputs'))
+    println("f_post_mean: ",f_post_mean)
     N_models = length(gp.models)
-    println("N_models: ", N_models)
     N_samples = size(new_inputs, 2)
-    println("N_samples: ", N_samples)
     μ = zeros(N_samples, N_models)
     σ2 = zeros(N_samples, N_models)
-
     for i in 1:N_models
         pred_gp = gp.models[i]
-        μ[:, i], σ2[:, i] = mean_and_var(pred_gp(t_new_inputs))
+        μ[:, i], σ2[:, i] = mean_and_var(pred_gp(new_inputs'))
     end
 
     # mean_and_var(fx) == (mean(fx), var(fx))
