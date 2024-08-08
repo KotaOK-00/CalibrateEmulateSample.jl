@@ -58,7 +58,7 @@ $(DocStringExtensions.TYPEDFIELDS)
 """
 struct GaussianProcess{GPPackage, FT} <: MachineLearningTool
     "The Gaussian Process (GP) Regression model(s) that are fitted to the given input-data pairs."
-    models::Vector{Union{<:GaussianProcesses.GPE, <:PyObject, <:AbstractGPs.PosteriorGP, Nothing}}
+    models::Vector{Union{<:GaussianProcesses.GPE, <:PyObject, Nothing}}
     "Kernel object."
     kernel::Union{<:GaussianProcesses.Kernel, <:PyObject, <:AbstractGPs.Kernel, Nothing}
     "Learn the noise with the White Noise kernel explicitly?"
@@ -82,14 +82,14 @@ $(DocStringExtensions.TYPEDSIGNATURES)
 """
 function GaussianProcess(
     package::GPPkg;
-    kernel::Union{GPK, KPy, AGPK, Nothing} = nothing,
+    kernel::Union{K, KPy, Nothing} = nothing,
     noise_learn = true,
     alg_reg_noise::FT = 1e-3,
     prediction_type::PredictionType = YType(),
 ) where {GPPkg <: GaussianProcessesPackage, GPK <: GaussianProcesses.Kernel, KPy <: PyObject, AGPK <: AbstractGPs.Kernel, FT <: AbstractFloat}
 
     # Initialize vector for GP models
-    models = Vector{Union{<:GaussianProcesses.GPE, <:PyObject, <:AbstractGPs.PosteriorGP, Nothing}}(undef, 0)
+    models = Vector{Union{<:GaussianProcesses.GPE, <:PyObject, Nothing}}(undef, 0)
 
     # the algorithm regularization noise is set to some small value if we are learning noise, else
     # it is fixed to the correct value (1.0)
@@ -164,6 +164,7 @@ function build_models!(
 
         # Instantiate GP model
         m = GaussianProcesses.GPE(input_values, output_values[i, :], kmean, kernel_i, logstd_regularization_noise)
+
         println("created GP: ", i)
         push!(models, m)
 
@@ -327,7 +328,7 @@ function build_models!(
         # Create default squared exponential kernel
         const_value = 1.0
         rbf_len = 1.0
-        rbf = const_value * KernelFunctions.SqExponentialKernel() ∘ KernelFunctions.ScaleTransform(rbf_len)
+        rbf = const_value * KernelFunctions.transform(KernelFunctions.SqExponentialKernel(), KernelFunctions.ScaleTransform(rbf_len))
         kern = rbf
         println("Using default squared exponential kernel:", kern)
     else
@@ -344,21 +345,14 @@ function build_models!(
     end
 
     regularization_noise = gp.alg_reg_noise
-    println("size of regularization_noise: ", size(regularization_noise))
-
-    println("size of input_values: ", size(input_values))
-    println("size of output_values: ", size(output_values))
 
     for i in 1:N_models
         kernel_i = deepcopy(kern)
-        # In contrast to the GPJL and SKLJL case "data_i = output_values[i, :]"
         data_i = output_values[i, :]
-        f = AbstractGPs.GP(kernel_i)
-        println("size of data_i: ", size(data_i)) # delete
-        println("size of transposed data_i: ", size(data_i')) # delete
+        f = GP(kernel_i)
         # f arguments:
-        # input_values:    (input_dim * N_dims)
-        fx = f(input_values', regularization_noise)
+        # input_values:    (N_samples × input_dim)
+        fx = f(input_values, regularization_noise)
         # posterior arguments:
         # data_i:    (N_samples,)
         post_fx = posterior(fx, data_i)
@@ -366,59 +360,24 @@ function build_models!(
             println(kernel_i)
             print("Completed training of: ")
         end
-        println("created GP: ", i)
+        println(i, ", ")
         push!(models, post_fx)
-        # println(post_fx)
+        println(post_fx)
     end
 end
 
 #Optimisation
-function optimize_hyperparameters!(
-    gp::GaussianProcess{AGPJL}, args...; kwargs...)
-    # `kwargs`: Keyword arguments for the optimize function from the Optim package
-    N_models = length(gp.models)
-    for i in 1:N_models
-        # always regress with noise_learn=false; if gp was created with noise_learn=true
-        # we've already explicitly added noise to the kernel
+#function optimize_hyperparameters!(gp::GaussianProcess{AGPJL}, args...; kwargs...)
+#    println("SKlearn, already trained. continuing...")
+#end
 
-        #optimize!(gp.models[i], args...; noise = false, kwargs...)
-        println("optimized hyperparameters of GP: ", i)
-    end
-end
-
-function predict(
-    gp::GaussianProcess{AGPJL},
-    new_inputs::AbstractMatrix{FT}
-) where {FT <: AbstractFloat}
-    println("size of gp.models: ", size(gp.models))
-
-    println("size of new_inputs: ", size(new_inputs))
-    println("size of new_inputs transpose: ", size(new_inputs'))
-
-    N_models = length(gp.models)
-    println("N_models: ", N_models)
-    N_samples = size(new_inputs, 2)
-    println("N_samples: ", N_samples)
-    μ = zeros(N_samples, N_models)
-    σ2 = zeros(N_samples, N_models)
-
-    for i in 1:N_models
-        pred_gp = gp.models[i]
-        println("model $i: input dimension = ", size(new_inputs))
-        println("model $i: input data type = ", typeof(new_inputs))
-        println("sample data: ", new_inputs[:, 1:5])
-        pred = pred_gp(new_inputs)
-        println("size of prediction model: ",size(pred))
-        μ[:, i], σ2[:, i] = mean_and_var(pred)
-    end
-
+function predict(gp::GaussianProcess{AGPJL}, new_inputs::AbstractMatrix{FT}) where {FT <: AbstractFloat}
+    pred_gp = gp.models[1] # optimised before this
     # mean_and_var(fx) == (mean(fx), var(fx))
         # var(fx) == diag(cov(fx))
-    # μ, σ2 = mean_and_var(pred_gp(new_inputs'))
-    println("mean", μ)
-    println("var", σ2)
+    μ, σ2 = mean_and_var(pred_gp(new_inputs'))
 
     σ2[:, :] .= σ2[:, :] .+ gp.alg_reg_noise
-    println("var + noise", σ2)
+
     return μ, σ2
 end
