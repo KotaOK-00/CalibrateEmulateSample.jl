@@ -352,14 +352,13 @@ function build_models!(
     for i in 1:N_models
         kernel_i = deepcopy(kern)
         # In contrast to the GPJL and SKLJL case "data_i = output_values[i, :]"
-        data_i = output_values[:, i]
+        data_i = output_values[i, :]
         f = AbstractGPs.GP(kernel_i)
         println("size of data_i: ", size(data_i)) # delete
         println("size of transposed data_i: ", size(data_i')) # delete
         # f arguments:
-        # input_values:    (N_samples × input_dim)
-        fx = f(input_values, regularization_noise)
-        println("size of fx: ", size(fx)) # delete
+        # input_values:    (input_dim * N_dims)
+        fx = f(input_values', regularization_noise)
         # posterior arguments:
         # data_i:    (N_samples,)
         post_fx = posterior(fx, data_i)
@@ -369,7 +368,7 @@ function build_models!(
         end
         println("created GP: ", i)
         push!(models, post_fx)
-        println(post_fx)
+        # println(post_fx)
     end
 end
 
@@ -395,8 +394,6 @@ function predict(
 
     println("size of new_inputs: ", size(new_inputs))
     println("size of new_inputs transpose: ", size(new_inputs'))
-    t_new_inputs = new_inputs'
-    println("size of new_inputs transpose: ", size(t_new_inputs))
 
     N_models = length(gp.models)
     println("N_models: ", N_models)
@@ -407,7 +404,12 @@ function predict(
 
     for i in 1:N_models
         pred_gp = gp.models[i]
-        μ[:, i], σ2[:, i] = mean_and_var(pred_gp(t_new_inputs))
+        println("model $i: input dimension = ", size(new_inputs))
+        println("model $i: input data type = ", typeof(new_inputs))
+        println("sample data: ", new_inputs[:, 1:5])
+        pred = pred_gp(new_inputs)
+        println("size of prediction model: ",size(pred))
+        μ[:, i], σ2[:, i] = mean_and_var(pred)
     end
 
     # mean_and_var(fx) == (mean(fx), var(fx))
