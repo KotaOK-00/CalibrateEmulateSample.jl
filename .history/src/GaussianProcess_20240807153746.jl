@@ -164,6 +164,7 @@ function build_models!(
 
         # Instantiate GP model
         m = GaussianProcesses.GPE(input_values, output_values[i, :], kmean, kernel_i, logstd_regularization_noise)
+
         println("created GP: ", i)
         push!(models, m)
 
@@ -327,7 +328,7 @@ function build_models!(
         # Create default squared exponential kernel
         const_value = 1.0
         rbf_len = 1.0
-        rbf = const_value * KernelFunctions.SqExponentialKernel() ∘ ARDTransform(rbf_len, 2)
+        rbf = const_value * KernelFunctions.SqExponentialKernel() ∘ KernelFunctions.ScaleTransform(rbf_len)
         kern = rbf
         println("Using default squared exponential kernel:", kern)
     else
@@ -352,13 +353,14 @@ function build_models!(
     for i in 1:N_models
         kernel_i = deepcopy(kern)
         # In contrast to the GPJL and SKLJL case "data_i = output_values[i, :]"
-        data_i = output_values[i, :]
+        data_i = output_values[:, i]
         f = AbstractGPs.GP(kernel_i)
         println("size of data_i: ", size(data_i)) # delete
         println("size of transposed data_i: ", size(data_i')) # delete
         # f arguments:
-        # input_values:    (input_dim * N_dims)
-        fx = f(input_values', regularization_noise)
+        # input_values:    (N_samples × input_dim)
+        fx = f(input_values, regularization_noise)
+        println("size of fx: ", size(fx)) # delete
         # posterior arguments:
         # data_i:    (N_samples,)
         post_fx = posterior(fx, data_i)
@@ -366,32 +368,14 @@ function build_models!(
             println(kernel_i)
             print("Completed training of: ")
         end
-        println("created GP: ", i)
-        # push!(models, post_fx)
-        # println(post_fx)
+        println(i, ", ")
+        push!(models, post_fx)
+        println(post_fx)
     end
-
-    const_value = [2.9031145778344696; 3.8325906110973795]
-    rbf_len = [1.9952706691900783 3.066374123568536; 5.783676639895112 2.195849064147456]
-
-    for i in 1:N_models
-        opt_kern = const_value[i] * KernelFunctions.SqExponentialKernel() ∘ ARDTransform(rbf_len[i, :])
-        opt_f = AbstractGPs.GP(opt_kern)
-        opt_fx = opt_f(input_values', regularization_noise)
-
-        data_i = output_values[i, :]
-        opt_post_fx = posterior(opt_fx, data_i)
-        println("optimised GP: ", i)
-        push!(models, opt_post_fx)
-    end
-
 end
 
-
-
 #Optimisation
-function optimize_hyperparameters!(
-    gp::GaussianProcess{AGPJL}, args...; kwargs...)
+function optimize_hyperparameters!(gp::GaussianProcess{AGPJL}, args...; kwargs...)
     # `kwargs`: Keyword arguments for the optimize function from the Optim package
     N_models = length(gp.models)
     for i in 1:N_models
@@ -399,40 +383,37 @@ function optimize_hyperparameters!(
         # we've already explicitly added noise to the kernel
 
         #optimize!(gp.models[i], args...; noise = false, kwargs...)
-
         println("optimized hyperparameters of GP: ", i)
     end
 end
 
-function predict(
-    gp::GaussianProcess{AGPJL},
-    new_inputs::AbstractMatrix{FT}
-) where {FT <: AbstractFloat}
-    println("size of new_inputs: ", size(new_inputs))
-    println("size of new_inputs transpose: ", size(new_inputs'))
+function predict(gp::GaussianProcess{AGPJL}, new_inputs::AbstractMatrix{FT}) where {FT <: AbstractFloat}
+    pred_gp = gp.models[1] # optimised before this
+    println("size of gp.models", size(gp.models))
+    println("type of pred_gp", typeof(pred_gp))
+    println("pred_gp", pred_gp)
 
-    N_models = length(gp.models)
-    println("N_models: ", N_models)
-    N_samples = size(new_inputs, 2)
-    println("N_samples: ", N_samples)
-    μ = zeros(N_models, N_samples)
-    σ2 = zeros(N_models, N_samples)
 
-    for i in 1:N_models
-        pred_gp = gp.models[i]
-        println("model $i: input dimension = ", size(new_inputs))
-        pred = pred_gp(new_inputs)
-        μ[i, :] = mean(pred) ####
-        σ2[i, :] = var(pred)
+    # Trained data dimensions in pred_gp
+    trained_data = pred_gp.f.data
+    println("type of trained_data", typeof(trained_data))
+    println("size of trained_data.x (trained inputs)", size(trained_data.x))
+
+    println("size of new_inputs", size(new_inputs))
+    println("size of new_inputs transpose", size(new_inputs'))
+
+    # Ensure dimensionality match
+    if size(trained_data.x, 2) != size(new_inputs, 1)
+        error("DimensionMismatch: The number of features in new_inputs must match the number of features in the training data.")
     end
+
     # mean_and_var(fx) == (mean(fx), var(fx))
         # var(fx) == diag(cov(fx))
-    # μ, σ2 = mean_and_var(pred_gp(new_inputs'))
+    μ, σ2 = mean_and_var(pred_gp(new_inputs'))
+    println("mean", μ)
+    println("var", σ2)
 
     σ2[:, :] .= σ2[:, :] .+ gp.alg_reg_noise
-    #println("var + noise", σ2)
-    println("size of μ: ",size(μ))
-    println("size of σ2: ",size(σ2))
-
+    println("var + noise", σ2)
     return μ, σ2
 end
