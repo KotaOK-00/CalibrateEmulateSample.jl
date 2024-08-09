@@ -367,11 +367,7 @@ function build_models!(
             print("Completed training of: ")
         end
         println("created GP: ", i)
-<<<<<<< HEAD
         push!(models, post_fx)
-=======
-        # push!(models, post_fx)
->>>>>>> 9a4d127 (AGPJL + Barker sampling)
         # println(post_fx)
     end
 
@@ -390,7 +386,6 @@ function build_models!(
     end
 
 end
-#1/exp(v)
 
 
 
@@ -411,8 +406,8 @@ end
 
 function predict(
     gp::GaussianProcess{AGPJL},
-    new_inputs::AbstractMatrix{Dual}
-) where {FT <: AbstractFloat, Dual}
+    new_inputs::AbstractMatrix{FT}
+) where {FT <: AbstractFloat}
     println("size of new_inputs: ", size(new_inputs))
     println("size of new_inputs transpose: ", size(new_inputs'))
 
@@ -420,8 +415,9 @@ function predict(
     println("N_models: ", N_models)
     N_samples = size(new_inputs, 2)
     println("N_samples: ", N_samples)
-    μ = zeros(Dual, N_models, N_samples)
-    σ2 = zeros(Dual, N_models, N_samples)
+    μ = zeros(N_models, N_samples)
+    σ2 = zeros(N_models, N_samples)
+
     for i in 1:N_models
         pred_gp = gp.models[i]
         println("model $i: input dimension = ", size(new_inputs))

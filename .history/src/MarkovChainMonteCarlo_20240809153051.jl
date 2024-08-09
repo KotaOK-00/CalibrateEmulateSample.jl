@@ -1,5 +1,5 @@
 # refactor-Sample
-module MMCMC
+module MarkovChainMonteCarlo
 
 using ..Emulators
 using ..ParameterDistributions
@@ -206,10 +206,12 @@ return AdvancedMH.DensityModel(
             # Vector of N_samples covariance matrices. For MH, N_samples is always 1, so we
             # have to reshape()/re-cast input/output; simpler to do here than add a
             # predict() method.
+            println(typeof(reshape(θ, :, 1)))
+            println(typeof(em))
             g, g_cov =
                 Emulators.predict(em, reshape(θ, :, 1), transform_to_real = false, vector_rf_unstandardize = false)
             #TODO vector_rf will always unstandardize, but other methods will not, so we require this additional flag.
-
+@info "completed a prediction"
             if isa(g_cov[1], Real)
                 return logpdf(MvNormal(obs_sample, g_cov[1] * I), vec(g)) + logpdf(prior, θ)
             else
@@ -314,7 +316,7 @@ function AdvancedMH.propose(
     n = length(current_state.params)
     u = rand(rng, n)
     xi = rand(rng, sampler.proposal)
-    b = u .< 1 ./ (1 + exp(- log_gradient .* xi))
+    b = u .< 1 ./ (1 + exp.(- log_gradient .* xi))
     return current_state.params .+ b .* xi
 end
 
@@ -332,14 +334,15 @@ function AbstractMCMC.step(
     kwargs...,
 ) where {FT <: AbstractFloat}
     # Generate a new proposal.
+@info "step 1"
     new_params = AdvancedMH.propose(rng, sampler, model, current_state; stepsize = stepsize)
-
+@info "step 2"
     # Calculate the log acceptance probability and the log density of the candidate.
     new_log_density = AdvancedMH.logdensity(model, new_params)
     log_α =
         new_log_density - AdvancedMH.logdensity(model, current_state) +
         AdvancedMH.logratio_proposal_density(sampler, current_state, new_params)
-
+@info "step 3"
     # Decide whether to return the previous params or the new one.
     new_state = if -Random.randexp(rng) < log_α
         # accept

@@ -49,18 +49,17 @@ ensemble_kalman_process = load(calibrate_file)["eki"]
 # the start of the chain, and reduce burn-in time.
 init_sample = EKP.get_u_mean_final(ensemble_kalman_process)
 println("initial parameters: ", init_sample)
-@info typeof(emulator_gp.machiune_learning_tool)
 
 # Create MCMC from the wrapper: we will use a random walk Metropolis-Hastings MCMC (RWMHSampling())
 # We need to provide the API with the observations (y_obs), priors (prior) and our emulator (emulator_gp).
 # The emulator is used because it is cheap to evaluate so we can generate many MCMC samples.
-mcmc = MCMCWrapper(BarkerSampling(), y_obs, prior, emulator_gp; init_params = init_sample)
+mcmc = MCMCWrapper(RWMHSampling(), y_obs, prior, emulator_gp; init_params = init_sample)
 # First let's run a short chain to determine a good step size
 new_step = optimize_stepsize(mcmc; rng = rng, init_stepsize = 0.1, N = 2000, discard_initial = 0)
-@info "hello"
+
 # Now begin the actual MCMC
 println("Begin MCMC - with step size ", new_step)     # 0.4
-chain = MarkovChainMonteCarlo.sample(mcmc, 1000; rng = rng, stepsize = new_step, discard_initial = 2_000)
+chain = MarkovChainMonteCarlo.sample(mcmc, 100_000; rng = rng, stepsize = new_step, discard_initial = 2_000)
 
 # We can print summary statistics of the MCMC chain
 display(chain)
@@ -192,7 +191,7 @@ mcmc = MCMCWrapper(RWMHSampling(), y_obs, prior, emulator_random_features; init_
 new_step = optimize_stepsize(mcmc; init_stepsize = 0.1, N = 2000, discard_initial = 0)
 
 println("Begin MCMC - with step size ", new_step)      # 0.4
-chain = MarkovChainMonteCarlo.sample(mcmc, 1_000; stepsize = new_step, discard_initial = 2_000)
+chain = MarkovChainMonteCarlo.sample(mcmc, 100_000; stepsize = new_step, discard_initial = 2_000)
 
 # We can print summary statistics of the MCMC chain
 display(chain)

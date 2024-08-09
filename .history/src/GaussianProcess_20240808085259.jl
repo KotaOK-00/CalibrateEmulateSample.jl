@@ -327,7 +327,7 @@ function build_models!(
         # Create default squared exponential kernel
         const_value = 1.0
         rbf_len = 1.0
-        rbf = const_value * KernelFunctions.SqExponentialKernel() ∘ ARDTransform(rbf_len, 2)
+        rbf = const_value * KernelFunctions.SqExponentialKernel() ∘ KernelFunctions.ScaleTransform(rbf_len)
         kern = rbf
         println("Using default squared exponential kernel:", kern)
     else
@@ -367,32 +367,10 @@ function build_models!(
             print("Completed training of: ")
         end
         println("created GP: ", i)
-<<<<<<< HEAD
         push!(models, post_fx)
-=======
-        # push!(models, post_fx)
->>>>>>> 9a4d127 (AGPJL + Barker sampling)
         # println(post_fx)
     end
-
-    const_value = [2.9031145778344696; 3.8325906110973795]
-    rbf_len = [1.9952706691900783 3.066374123568536; 5.783676639895112 2.195849064147456]
-
-    for i in 1:N_models
-        opt_kern = const_value[i] * KernelFunctions.SqExponentialKernel() ∘ ARDTransform(rbf_len[i, :])
-        opt_f = AbstractGPs.GP(opt_kern)
-        opt_fx = opt_f(input_values', regularization_noise)
-
-        data_i = output_values[i, :]
-        opt_post_fx = posterior(opt_fx, data_i)
-        println("optimised GP: ", i)
-        push!(models, opt_post_fx)
-    end
-
 end
-#1/exp(v)
-
-
 
 #Optimisation
 function optimize_hyperparameters!(
@@ -404,15 +382,16 @@ function optimize_hyperparameters!(
         # we've already explicitly added noise to the kernel
 
         #optimize!(gp.models[i], args...; noise = false, kwargs...)
-
         println("optimized hyperparameters of GP: ", i)
     end
 end
 
 function predict(
     gp::GaussianProcess{AGPJL},
-    new_inputs::AbstractMatrix{Dual}
-) where {FT <: AbstractFloat, Dual}
+    new_inputs::AbstractMatrix{FT}
+) where {FT <: AbstractFloat}
+    println("size of gp.models: ", size(gp.models))
+
     println("size of new_inputs: ", size(new_inputs))
     println("size of new_inputs transpose: ", size(new_inputs'))
 
@@ -420,23 +399,25 @@ function predict(
     println("N_models: ", N_models)
     N_samples = size(new_inputs, 2)
     println("N_samples: ", N_samples)
-    μ = zeros(Dual, N_models, N_samples)
-    σ2 = zeros(Dual, N_models, N_samples)
+    μ = zeros(N_models)
+    σ2 = zeros(N_models, N_models)
+
     for i in 1:N_models
         pred_gp = gp.models[i]
         println("model $i: input dimension = ", size(new_inputs))
+        println("model $i: input data type = ", typeof(new_inputs))
+        println("sample data: ", new_inputs[:, 1:5])
         pred = pred_gp(new_inputs)
-        μ[i, :] = mean(pred) ####
-        σ2[i, :] = var(pred)
+        println("size of prediction model: ",size(pred))
+        μ[i], σ2[i, i] = mean_and_var(pred) ####
     end
     # mean_and_var(fx) == (mean(fx), var(fx))
         # var(fx) == diag(cov(fx))
     # μ, σ2 = mean_and_var(pred_gp(new_inputs'))
+    println("mean", μ)
+    println("var", σ2)
 
-    σ2[:, :] .= σ2[:, :] .+ gp.alg_reg_noise
-    #println("var + noise", σ2)
-    println("size of μ: ",size(μ))
-    println("size of σ2: ",size(σ2))
-
+    σ2[:] .= σ2[:] .+ gp.alg_reg_noise
+    println("var + noise", σ2)
     return μ, σ2
 end

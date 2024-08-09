@@ -367,11 +367,7 @@ function build_models!(
             print("Completed training of: ")
         end
         println("created GP: ", i)
-<<<<<<< HEAD
-        push!(models, post_fx)
-=======
         # push!(models, post_fx)
->>>>>>> 9a4d127 (AGPJL + Barker sampling)
         # println(post_fx)
     end
 

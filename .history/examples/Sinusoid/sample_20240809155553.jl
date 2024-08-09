@@ -192,7 +192,7 @@ mcmc = MCMCWrapper(RWMHSampling(), y_obs, prior, emulator_random_features; init_
 new_step = optimize_stepsize(mcmc; init_stepsize = 0.1, N = 2000, discard_initial = 0)
 
 println("Begin MCMC - with step size ", new_step)      # 0.4
-chain = MarkovChainMonteCarlo.sample(mcmc, 1_000; stepsize = new_step, discard_initial = 2_000)
+chain = MarkovChainMonteCarlo.sample(mcmc, 100_000; stepsize = new_step, discard_initial = 2_000)
 
 # We can print summary statistics of the MCMC chain
 display(chain)

@@ -2,10 +2,10 @@
 
 # In this example we have a model that produces a sinusoid
 # ``f(A, v) = A \sin(\phi + t) + v, \forall t \in [0,2\pi]``, with a random
-# phase ``\phi``. We want to quantify uncertainties on parameters ``A`` and ``v``,
+# phase ``\phi``. We want to quantify uncertainties on parameters ``A`` and ``v``, 
 # given noisy observations of the model output.
-# Previously, in the emulate step, we built an emulator to allow us to make quick and
-# approximate model evaluations. This will be used in our Markov chain Monte Carlo
+# Previously, in the emulate step, we built an emulator to allow us to make quick and 
+# approximate model evaluations. This will be used in our Markov chain Monte Carlo 
 # to sample the posterior distribution.
 
 # First, we load the packages we need:
@@ -37,37 +37,36 @@ prior = load(emulator_file)["prior"]
 # Get random number generator to start where we left off
 rng = load(emulator_file)["rng"]
 
-# We will also need a suitable value to initiate MCMC. To reduce burn-in, we will use the
-# final ensemble mean from EKI.
+# We will also need a suitable value to initiate MCMC. To reduce burn-in, we will use the 
+# final ensemble mean from EKI. 
 calibrate_file = joinpath(data_save_directory, "calibrate_results.jld2")
 ensemble_kalman_process = load(calibrate_file)["eki"]
 
 ## Markov chain Monte Carlo (MCMC)
 # Here, we set up an MCMC sampler, using the API. The MCMC will be run in the unconstrained space, for computational
-# efficiency. First, we need to find a suitable starting point, ideally one that is near the posterior distribution.
+# efficiency. First, we need to find a suitable starting point, ideally one that is near the posterior distribution. 
 # We start the MCMC from the final ensemble mean from EKI as this will increase the chance of acceptance near
 # the start of the chain, and reduce burn-in time.
 init_sample = EKP.get_u_mean_final(ensemble_kalman_process)
 println("initial parameters: ", init_sample)
-@info typeof(emulator_gp.machiune_learning_tool)
 
 # Create MCMC from the wrapper: we will use a random walk Metropolis-Hastings MCMC (RWMHSampling())
-# We need to provide the API with the observations (y_obs), priors (prior) and our emulator (emulator_gp).
+# We need to provide the API with the observations (y_obs), priors (prior) and our emulator (emulator_gp). 
 # The emulator is used because it is cheap to evaluate so we can generate many MCMC samples.
-mcmc = MCMCWrapper(BarkerSampling(), y_obs, prior, emulator_gp; init_params = init_sample)
+mcmc = MCMCWrapper(RWMHSampling(), y_obs, prior, emulator_gp; init_params = init_sample)
 # First let's run a short chain to determine a good step size
 new_step = optimize_stepsize(mcmc; rng = rng, init_stepsize = 0.1, N = 2000, discard_initial = 0)
-@info "hello"
+
 # Now begin the actual MCMC
 println("Begin MCMC - with step size ", new_step)     # 0.4
-chain = MarkovChainMonteCarlo.sample(mcmc, 1000; rng = rng, stepsize = new_step, discard_initial = 2_000)
+chain = MarkovChainMonteCarlo.sample(mcmc, 100_000; rng = rng, stepsize = new_step, discard_initial = 2_000)
 
 # We can print summary statistics of the MCMC chain
 display(chain)
 
 # Note that these values are provided in the unconstrained space. The vertical shift
 # seems reasonable, but the amplitude is not. This is because the amplitude is constrained to be
-# positive, but the MCMC is run in the unconstrained space.  We can transform to the real
+# positive, but the MCMC is run in the unconstrained space.  We can transform to the real 
 # constrained space and re-calculate these values.
 
 # Extract posterior samples and plot
@@ -90,8 +89,8 @@ p = plot(prior, fill = :lightgray, rng = rng)
 plot!(posterior, fill = :darkblue, alpha = 0.5, rng = rng, size = (800, 200))
 savefig(p, joinpath(data_save_directory, "sinusoid_posterior_GP.png"))
 
-# This shows the posterior distribution has collapsed around the true values for theta.
-# Note, these are marginal distributions but this is a multi-dimensional problem with a
+# This shows the posterior distribution has collapsed around the true values for theta. 
+# Note, these are marginal distributions but this is a multi-dimensional problem with a 
 # multi-dimensional posterior. Marginal distributions do not show us how parameters co-vary,
 # so we also plot the 2D posterior distribution.
 
@@ -192,7 +191,7 @@ mcmc = MCMCWrapper(RWMHSampling(), y_obs, prior, emulator_random_features; init_
 new_step = optimize_stepsize(mcmc; init_stepsize = 0.1, N = 2000, discard_initial = 0)
 
 println("Begin MCMC - with step size ", new_step)      # 0.4
-chain = MarkovChainMonteCarlo.sample(mcmc, 1_000; stepsize = new_step, discard_initial = 2_000)
+chain = MarkovChainMonteCarlo.sample(mcmc, 100_000; stepsize = new_step, discard_initial = 2_000)
 
 # We can print summary statistics of the MCMC chain
 display(chain)
@@ -301,5 +300,5 @@ plot_all = plot(
 
 savefig(plot_all, joinpath(data_save_directory, "sinusoid_MCMC_hist_RF.png"))
 
-# It is reassuring to see that this method is robust to the choice of emulator. The MCMC using
-# both GP and RF emulators give very similar posterior distributions.
+# It is reassuring to see that this method is robust to the choice of emulator. The MCMC using 
+# both GP and RF emulators give very similar posterior distributions. 

@@ -41,13 +41,10 @@ end
 function optimize_hyperparameters!(mlt)
     throw_define_mlt()
 end
-
-#=function predict(mlt::Any, new_inputs; mlt_kwargs...)
-    @info typeof(mlt)
+function predict(mlt, new_inputs; mlt_kwargs...)
     throw_define_mlt()
-
 end
-=#
+
 
 
 # We will define the different emulator types after the general statements
@@ -90,7 +87,7 @@ $(DocStringExtensions.TYPEDSIGNATURES)
 Positional Arguments
  - `machine_learning_tool` ::MachineLearningTool,
  - `input_output_pairs` ::PairedDataContainer
-Keyword Arguments
+Keyword Arguments 
  - `obs_noise_cov`: A matrix/uniform scaling to provide the observational noise covariance of the data - used for data processing (default `nothing`),
  - `normalize_inputs`: Normalize the inputs to be unit Gaussian, in the smallest full-rank space of the data (default `true`),
  - `standardize_outputs`: Standardize outputs with by dividing by a vector of provided factors (default `false`),
@@ -112,7 +109,7 @@ function Emulator(
     # For Consistency checks
     input_dim, output_dim = size(input_output_pairs, 1)
     if isa(obs_noise_cov, UniformScaling)
-        # Cast UniformScaling to Diagonal, since UniformScaling incompatible with
+        # Cast UniformScaling to Diagonal, since UniformScaling incompatible with 
         # SVD and standardize()
         obs_noise_cov = Diagonal(obs_noise_cov, output_dim)
     end
@@ -124,7 +121,7 @@ function Emulator(
     end
 
 
-    # [1.] Normalize the inputs?
+    # [1.] Normalize the inputs? 
     input_mean = vec(mean(get_inputs(input_output_pairs), dims = 2)) #column vector
     normalization = nothing
     if normalize_inputs
@@ -145,7 +142,7 @@ function Emulator(
 
     # [3.] Decorrelating the outputs, not performed for vector RF
     if decorrelate
-        #Transform data if obs_noise_cov available
+        #Transform data if obs_noise_cov available 
         # (if obs_noise_cov==nothing, transformed_data is equal to data)
         decorrelated_training_outputs, decomposition =
             svd_transform(training_outputs, obs_noise_cov, retained_svd_frac = retained_svd_frac)
@@ -195,14 +192,13 @@ Default is to predict in the decorrelated space.
 """
 function predict(
     emulator::Emulator{FT},
-    new_inputs::AM;
+    new_inputs::AbstractMatrix{FT};
     transform_to_real = false,
     vector_rf_unstandardize = true,
     mlt_kwargs...,
-) where {FT <: AbstractFloat, AM <: AbstractMatrix}
+) where {FT <: AbstractFloat}
     # Check if the size of new_inputs is consistent with the GP model's input
-    # dimension.
-    @info "predicted emulator"
+    # dimension. 
     input_dim, output_dim = size(emulator.training_pairs, 1)
 
     N_samples = size(new_inputs, 2)
@@ -224,14 +220,15 @@ function predict(
 
     # [1.] normalize
     normalized_new_inputs = normalize(emulator, new_inputs)
+
     # [2.]  predict. Note: ds = decorrelated, standard
     ds_outputs, ds_output_var = predict(emulator.machine_learning_tool, normalized_new_inputs, mlt_kwargs...)
 
     # [3.] transform back to real coordinates or remain in decorrelated coordinates
     if !isa(get_machine_learning_tool(emulator), VectorRandomFeatureInterface)
         if transform_to_real && emulator.decomposition === nothing
-            throw(ArgumentError("""Need SVD decomposition to transform back to original space,
-                     but GaussianProcess.decomposition == nothing.
+            throw(ArgumentError("""Need SVD decomposition to transform back to original space, 
+                     but GaussianProcess.decomposition == nothing. 
                      Try setting transform_to_real=false"""))
         elseif transform_to_real && emulator.decomposition !== nothing
 
@@ -245,7 +242,7 @@ function predict(
             return reverse_standardize(emulator, s_outputs, s_output_cov)
         else
             # remain in decorrelated, standardized coordinates (cov remains diagonal)
-            # Convert to vector of  matrices to match the format
+            # Convert to vector of  matrices to match the format  
             # when transform_to_real=true
             ds_output_diagvar = vec([Diagonal(ds_output_var[:, j]) for j in 1:N_samples])
             if output_dim == 1
@@ -257,7 +254,7 @@ function predict(
         # create a vector of covariance matrices
         ds_output_covvec = vec([ds_output_var[:, :, j] for j in 1:N_samples])
 
-        if emulator.decomposition === nothing # without applying SVD
+        if emulator.decomposition === nothing # without applying SVD    
             if vector_rf_unstandardize
                 # [4.] unstandardize
                 return reverse_standardize(emulator, ds_outputs, ds_output_covvec)
@@ -265,7 +262,7 @@ function predict(
                 return ds_outputs, ds_output_covvec
             end
 
-        else #if we applied SVD
+        else #if we applied SVD               
             if transform_to_real # ...and want to return coordinates
                 s_outputs, s_output_cov =
                     svd_reverse_transform_mean_cov(ds_outputs, ds_output_covvec, emulator.decomposition)
@@ -315,7 +312,6 @@ function calculate_normalization(inputs::VOrM) where {VOrM <: AbstractVecOrMat}
         svd_in = svd(input_cov)
         sqrt_inv_sv = 1 ./ sqrt.(svd_in.S[1:rank(input_cov)])
         normalization = Diagonal(sqrt_inv_sv) * svd_in.Vt[1:rank(input_cov), :] #non-square
-        @info "reducing input dimension from $(size(input_cov,1)) to $rank(input_cov) during low rank in normalization"
     end
     return normalization
 end
@@ -396,7 +392,7 @@ end
 """
 $(DocStringExtensions.TYPEDSIGNATURES)
 
-Reverse a previous standardization with the stored vector of factors (size equal to output
+Reverse a previous standardization with the stored vector of factors (size equal to output 
 dimension). `output_cov` is a Vector of covariance matrices, such as is returned by
 [`svd_reverse_transform_mean_cov`](@ref).
 """
@@ -427,11 +423,11 @@ Apply a singular value decomposition (SVD) to the data
   - `truncate_svd` - Project onto this fraction of the largest principal components. Defaults
     to 1.0 (no truncation).
 
-Returns the transformed data and the decomposition, which is a matrix
-factorization of type LinearAlgebra.SVD.
-
-Note: If `F::SVD` is the factorization object, U, S, V and Vt can be obtained via
-F.U, F.S, F.V and F.Vt, such that A = U * Diagonal(S) * Vt. The singular values
+Returns the transformed data and the decomposition, which is a matrix 
+factorization of type LinearAlgebra.SVD. 
+  
+Note: If `F::SVD` is the factorization object, U, S, V and Vt can be obtained via 
+F.U, F.S, F.V and F.Vt, such that A = U * Diagonal(S) * Vt. The singular values 
 in S are sorted in descending order.
 """
 function svd_transform(
@@ -493,11 +489,11 @@ Transform the mean and covariance back to the original (correlated) coordinate s
          - predicted covariance; size *N\\_predicted\\_points* array of size *output\\_dim* × *output\\_dim*.
   - `decomposition` - SVD decomposition of *obs\\_noise\\_cov*.
 
-Returns the transformed mean (size *output\\_dim* × *N\\_predicted\\_points*) and variance.
+Returns the transformed mean (size *output\\_dim* × *N\\_predicted\\_points*) and variance. 
 Note that transforming the variance back to the original coordinate system
-results in non-zero off-diagonal elements, so instead of just returning the
-elements on the main diagonal (i.e., the variances), we return the full
-covariance at each point, as a vector of length *N\\_predicted\\_points*, where
+results in non-zero off-diagonal elements, so instead of just returning the 
+elements on the main diagonal (i.e., the variances), we return the full 
+covariance at each point, as a vector of length *N\\_predicted\\_points*, where 
 each element is a matrix of size *output\\_dim* × *output\\_dim*.
 """
 function svd_reverse_transform_mean_cov(

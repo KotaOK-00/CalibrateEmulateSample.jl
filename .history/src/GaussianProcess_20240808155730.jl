@@ -367,32 +367,32 @@ function build_models!(
             print("Completed training of: ")
         end
         println("created GP: ", i)
-<<<<<<< HEAD
         push!(models, post_fx)
-=======
-        # push!(models, post_fx)
->>>>>>> 9a4d127 (AGPJL + Barker sampling)
         # println(post_fx)
     end
+end
 
+
+
+function _posterior(
+    gp::GaussianProcess{AGPJL},
+    input_output_pairs::PairedDataContainer{FT},
+) where {FT <: AbstractFloat}
+    input_values = permutedims(get_inputs(input_output_pairs), (2, 1))
+    output_values = get_outputs(input_output_pairs)
+    N_models = size(output_values, 1)
     const_value = [2.9031145778344696; 3.8325906110973795]
     rbf_len = [1.9952706691900783 3.066374123568536; 5.783676639895112 2.195849064147456]
 
     for i in 1:N_models
-        opt_kern = const_value[i] * KernelFunctions.SqExponentialKernel() ∘ ARDTransform(rbf_len[i, :])
-        opt_f = AbstractGPs.GP(opt_kern)
-        opt_fx = opt_f(input_values', regularization_noise)
+    opt_kern = const_value[i] * KernelFunctions.SqExponentialKernel() ∘ ARDTransform(rbf_len[i, :])
+    opt_f = AbstractGPs.GP(opt_kern)
+    opt_fx = opt_f(input_values', regularization_noise)
 
-        data_i = output_values[i, :]
-        opt_post_fx = posterior(opt_fx, data_i)
-        println("optimised GP: ", i)
-        push!(models, opt_post_fx)
-    end
+    data_i = output_values[i, :]
 
+    return posterior(opt_fx, data_i)
 end
-#1/exp(v)
-
-
 
 #Optimisation
 function optimize_hyperparameters!(
@@ -404,6 +404,9 @@ function optimize_hyperparameters!(
         # we've already explicitly added noise to the kernel
 
         #optimize!(gp.models[i], args...; noise = false, kwargs...)
+        post_opt_fx = posterior(f_opt, data_i.x, data_i.y)
+
+        gp.models[i] = post_opt_fx
 
         println("optimized hyperparameters of GP: ", i)
     end
@@ -411,8 +414,8 @@ end
 
 function predict(
     gp::GaussianProcess{AGPJL},
-    new_inputs::AbstractMatrix{Dual}
-) where {FT <: AbstractFloat, Dual}
+    new_inputs::AbstractMatrix{FT}
+) where {FT <: AbstractFloat}
     println("size of new_inputs: ", size(new_inputs))
     println("size of new_inputs transpose: ", size(new_inputs'))
 
@@ -420,8 +423,9 @@ function predict(
     println("N_models: ", N_models)
     N_samples = size(new_inputs, 2)
     println("N_samples: ", N_samples)
-    μ = zeros(Dual, N_models, N_samples)
-    σ2 = zeros(Dual, N_models, N_samples)
+    μ = zeros(N_models, N_samples)
+    σ2 = zeros(N_models, N_samples)
+
     for i in 1:N_models
         pred_gp = gp.models[i]
         println("model $i: input dimension = ", size(new_inputs))

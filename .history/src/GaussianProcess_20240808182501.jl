@@ -367,11 +367,7 @@ function build_models!(
             print("Completed training of: ")
         end
         println("created GP: ", i)
-<<<<<<< HEAD
-        push!(models, post_fx)
-=======
         # push!(models, post_fx)
->>>>>>> 9a4d127 (AGPJL + Barker sampling)
         # println(post_fx)
     end
 
@@ -422,6 +418,7 @@ function predict(
     println("N_samples: ", N_samples)
     μ = zeros(Dual, N_models, N_samples)
     σ2 = zeros(Dual, N_models, N_samples)
+
     for i in 1:N_models
         pred_gp = gp.models[i]
         println("model $i: input dimension = ", size(new_inputs))

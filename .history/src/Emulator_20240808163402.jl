@@ -41,13 +41,12 @@ end
 function optimize_hyperparameters!(mlt)
     throw_define_mlt()
 end
-
-#=function predict(mlt::Any, new_inputs; mlt_kwargs...)
+function predict(mlt, new_inputs; mlt_kwargs...)
     @info typeof(mlt)
     throw_define_mlt()
 
 end
-=#
+
 
 
 # We will define the different emulator types after the general statements
@@ -195,14 +194,13 @@ Default is to predict in the decorrelated space.
 """
 function predict(
     emulator::Emulator{FT},
-    new_inputs::AM;
+    new_inputs::AbstractMatrix{FT};
     transform_to_real = false,
     vector_rf_unstandardize = true,
     mlt_kwargs...,
-) where {FT <: AbstractFloat, AM <: AbstractMatrix}
+) where {FT <: AbstractFloat}
     # Check if the size of new_inputs is consistent with the GP model's input
     # dimension.
-    @info "predicted emulator"
     input_dim, output_dim = size(emulator.training_pairs, 1)
 
     N_samples = size(new_inputs, 2)
@@ -224,6 +222,7 @@ function predict(
 
     # [1.] normalize
     normalized_new_inputs = normalize(emulator, new_inputs)
+
     # [2.]  predict. Note: ds = decorrelated, standard
     ds_outputs, ds_output_var = predict(emulator.machine_learning_tool, normalized_new_inputs, mlt_kwargs...)
 
@@ -315,7 +314,6 @@ function calculate_normalization(inputs::VOrM) where {VOrM <: AbstractVecOrMat}
         svd_in = svd(input_cov)
         sqrt_inv_sv = 1 ./ sqrt.(svd_in.S[1:rank(input_cov)])
         normalization = Diagonal(sqrt_inv_sv) * svd_in.Vt[1:rank(input_cov), :] #non-square
-        @info "reducing input dimension from $(size(input_cov,1)) to $rank(input_cov) during low rank in normalization"
     end
     return normalization
 end
