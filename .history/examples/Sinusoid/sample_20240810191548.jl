@@ -180,7 +180,7 @@ plot_all = plot(
 
 savefig(plot_all, joinpath(data_save_directory, "sinusoid_MCMC_hist_GP.png"))
 
-
+#=
 ### MCMC Sampling using Random Features Emulator
 
 # We could repeat the above process with the random features (RF) emulator in place of the GP
@@ -303,3 +303,4 @@ savefig(plot_all, joinpath(data_save_directory, "sinusoid_MCMC_hist_RF.png"))
 
 # It is reassuring to see that this method is robust to the choice of emulator. The MCMC using
 # both GP and RF emulators give very similar posterior distributions.
+=#

@@ -206,10 +206,8 @@ return AdvancedMH.DensityModel(
             # Vector of N_samples covariance matrices. For MH, N_samples is always 1, so we
             # have to reshape()/re-cast input/output; simpler to do here than add a
             # predict() method.
-
-            #println(typeof(reshape(θ, :, 1)))
-            #println(typeof(em))
-
+            println(typeof(reshape(θ, :, 1)))
+            println(typeof(em))
             g, g_cov =
                 Emulators.predict(em, reshape(θ, :, 1), transform_to_real = false, vector_rf_unstandardize = false)
             #TODO vector_rf will always unstandardize, but other methods will not, so we require this additional flag.

@@ -60,7 +60,7 @@ new_step = optimize_stepsize(mcmc; rng = rng, init_stepsize = 0.1, N = 2000, dis
 @info "hello"
 # Now begin the actual MCMC
 println("Begin MCMC - with step size ", new_step)     # 0.4
-chain = MarkovChainMonteCarlo.sample(mcmc, 100_000; rng = rng, stepsize = new_step, discard_initial = 2_000)
+chain = MarkovChainMonteCarlo.sample(mcmc, 10_000; rng = rng, stepsize = new_step, discard_initial = 2_000)
 
 # We can print summary statistics of the MCMC chain
 display(chain)
@@ -180,7 +180,7 @@ plot_all = plot(
 
 savefig(plot_all, joinpath(data_save_directory, "sinusoid_MCMC_hist_GP.png"))
 
-
+#=
 ### MCMC Sampling using Random Features Emulator
 
 # We could repeat the above process with the random features (RF) emulator in place of the GP
@@ -303,3 +303,4 @@ savefig(plot_all, joinpath(data_save_directory, "sinusoid_MCMC_hist_RF.png"))
 
 # It is reassuring to see that this method is robust to the choice of emulator. The MCMC using
 # both GP and RF emulators give very similar posterior distributions.
+=#
