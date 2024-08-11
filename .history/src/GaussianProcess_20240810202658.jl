@@ -344,18 +344,18 @@ function build_models!(
     end
 
     regularization_noise = gp.alg_reg_noise
-    #println("size of regularization_noise: ", size(regularization_noise))
+    println("size of regularization_noise: ", size(regularization_noise))
 
-    #println("size of input_values: ", size(input_values))
-    #println("size of output_values: ", size(output_values))
+    println("size of input_values: ", size(input_values))
+    println("size of output_values: ", size(output_values))
 
     for i in 1:N_models
         kernel_i = deepcopy(kern)
         # In contrast to the GPJL and SKLJL case "data_i = output_values[i, :]"
         data_i = output_values[i, :]
         f = AbstractGPs.GP(kernel_i)
-        # println("size of data_i: ", size(data_i)) # delete
-        # println("size of transposed data_i: ", size(data_i')) # delete
+        println("size of data_i: ", size(data_i)) # delete
+        println("size of transposed data_i: ", size(data_i')) # delete
         # f arguments:
         # input_values:    (input_dim * N_dims)
         fx = f(input_values', regularization_noise)

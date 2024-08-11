@@ -326,8 +326,8 @@ function build_models!(
         println("Using default squared exponential kernel, learning length scale and variance parameters")
         # Create default squared exponential kernel
         const_value = 1.0
-        rbf_len = [1.0, 1.0]
-        rbf = const_value * (KernelFunctions.SqExponentialKernel() ∘ ARDTransform(rbf_len))
+        rbf_len = 1.0
+        rbf = const_value * (KernelFunctions.SqExponentialKernel() ∘ ARDTransform(rbf_len, 2))
         kern = rbf
         println("Using default squared exponential kernel:", kern)
     else
@@ -344,18 +344,18 @@ function build_models!(
     end
 
     regularization_noise = gp.alg_reg_noise
-    #println("size of regularization_noise: ", size(regularization_noise))
+    println("size of regularization_noise: ", size(regularization_noise))
 
-    #println("size of input_values: ", size(input_values))
-    #println("size of output_values: ", size(output_values))
+    println("size of input_values: ", size(input_values))
+    println("size of output_values: ", size(output_values))
 
     for i in 1:N_models
         kernel_i = deepcopy(kern)
         # In contrast to the GPJL and SKLJL case "data_i = output_values[i, :]"
         data_i = output_values[i, :]
         f = AbstractGPs.GP(kernel_i)
-        # println("size of data_i: ", size(data_i)) # delete
-        # println("size of transposed data_i: ", size(data_i')) # delete
+        println("size of data_i: ", size(data_i)) # delete
+        println("size of transposed data_i: ", size(data_i')) # delete
         # f arguments:
         # input_values:    (input_dim * N_dims)
         fx = f(input_values', regularization_noise)
@@ -371,12 +371,11 @@ function build_models!(
         # println(post_fx)
     end
 
-    log_const_value = [2.9031145778344696; 3.8325906110973795]
-    const_value = exp.(2 .* log_const_value)
+    const_value = [2.9031145778344696; 3.8325906110973795]
     rbf_len = [1.9952706691900783 3.066374123568536; 5.783676639895112 2.195849064147456]
 
     for i in 1:N_models
-        opt_kern = const_value[i] * (KernelFunctions.SqExponentialKernel() ∘ ARDTransform(1 ./ exp.(rbf_len[i, :])))
+        opt_kern = const_value[i] * (KernelFunctions.SqExponentialKernel() ∘ ARDTransform(1 ./ rbf_len[i, :]))
         opt_f = AbstractGPs.GP(opt_kern)
         opt_fx = opt_f(input_values', regularization_noise)
 
@@ -384,7 +383,6 @@ function build_models!(
         opt_post_fx = posterior(opt_fx, data_i)
         println("optimised GP: ", i)
         push!(models, opt_post_fx)
-        println(opt_post_fx.prior.kernel)
     end
 
 end

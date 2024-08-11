@@ -54,9 +54,9 @@ println("initial parameters: ", init_sample)
 # Create MCMC from the wrapper: we will use a random walk Metropolis-Hastings MCMC (RWMHSampling())
 # We need to provide the API with the observations (y_obs), priors (prior) and our emulator (emulator_gp).
 # The emulator is used because it is cheap to evaluate so we can generate many MCMC samples.
-mcmc = MCMCWrapper(RWMHSampling(), y_obs, prior, emulator_gp; init_params = init_sample)
+mcmc = MCMCWrapper(BarkerSampling(), y_obs, prior, emulator_gp; init_params = init_sample)
 # First let's run a short chain to determine a good step size
-new_step = optimize_stepsize(mcmc; rng = rng, init_stepsize = 0.1, N = 2000, discard_initial = 0)
+new_step = optimize_stepsize(mcmc; rng = rng, init_stepsize = 0.05, N = 2000, discard_initial = 0)
 @info "hello"
 # Now begin the actual MCMC
 println("Begin MCMC - with step size ", new_step)     # 0.4
