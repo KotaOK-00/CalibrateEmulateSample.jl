@@ -56,14 +56,27 @@ println("initial parameters: ", init_sample)
 # The emulator is used because it is cheap to evaluate so we can generate many MCMC samples.
 mcmc = MCMCWrapper(RWMHSampling(), y_obs, prior, emulator_gp; init_params = init_sample)
 # First let's run a short chain to determine a good step size
-new_step = optimize_stepsize(mcmc; rng = rng, init_stepsize = 0.1, N = 2000, discard_initial = 0)
-@info "hello"
+new_step =0.01
+# new_step = optimize_stepsize(mcmc; rng = rng, init_stepsize = 0.1, N = 2000, discard_initial = 0)
+
 # Now begin the actual MCMC
-println("Begin MCMC - with step size ", new_step)     # 0.4
-chain = MarkovChainMonteCarlo.sample(mcmc, 100_000; rng = rng, stepsize = new_step, discard_initial = 2_000)
+T = 100_000
+# println("Begin MCMC - with step size ", new_step)     # 0.4
+chain = MarkovChainMonteCarlo.sample(mcmc, T; rng = rng, stepsize = new_step, discard_initial = 0)
+
 
 # We can print summary statistics of the MCMC chain
 display(chain)
+posterior = MarkovChainMonteCarlo.get_posterior(mcmc, chain)
+# Back to constrained coordinates
+constrained_posterior = Emulators.transform_unconstrained_to_constrained(
+prior, MarkovChainMonteCarlo.get_distribution(posterior)
+)
+samples = zeros(Float64, T, 2)
+samples[:,1] = constrained_posterior["amplitude"]'
+samples[:,2] = constrained_posterior["vert_shift"]'
+covariance = cov(samples)
+println("covariance: ", covariance)
 
 # Note that these values are provided in the unconstrained space. The vertical shift
 # seems reasonable, but the amplitude is not. This is because the amplitude is constrained to be

@@ -67,7 +67,7 @@ outputs = CES.Utilities.get_outputs(input_output_pairs)
 # Gaussian process
 # We will set up a basic Gaussian process emulator using either ScikitLearn.jl or GaussianProcesses.jl.
 # See the Gaussian process page for more information and details about kernel choices.
-gppackage = Emulators.AGPJL()
+gppackage = Emulators.SKLJL()
 gauss_proc = Emulators.GaussianProcess(gppackage, noise_learn = false)
 
 # Build emulator with data

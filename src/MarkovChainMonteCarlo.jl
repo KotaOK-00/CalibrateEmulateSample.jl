@@ -25,6 +25,7 @@ export EmulatorPosteriorModel,
     pCNMHSampling,
     MALASampling,
     BarkerSampling,
+    HMCSampling,
     MCMCWrapper,
     accept_ratio,
     optimize_stepsize,
@@ -179,6 +180,25 @@ AdvancedMH.logratio_proposal_density(
 ) = AdvancedMH.logratio_proposal_density(sampler.proposal, transition_prev.params, candidate)
 
 MetropolisHastingsSampler(::BarkerSampling, prior::ParameterDistribution) = BarkerMetropolisHastings(_get_proposal(prior))
+"""
+$(DocStringExtensions.TYPEDEF)
+
+[`MCMCProtocol`](@ref) which uses Metropolis-Hastings sampling that generates proposals for
+new parameters according to the HMC proposal.
+"""
+struct HMCSampling <: MCMCProtocol end
+
+struct HMCMetropolisHastings{D} <: AdvancedMH.MHSampler
+    proposal::D
+end
+# Define method needed by AdvancedMH for new Sampler
+AdvancedMH.logratio_proposal_density(
+    sampler::HMCMetropolisHastings,
+    transition_prev::AdvancedMH.AbstractTransition,
+    candidate,
+) = AdvancedMH.logratio_proposal_density(sampler.proposal, transition_prev.params, candidate)
+
+MetropolisHastingsSampler(::HMCSampling, prior::ParameterDistribution) = HMCMetropolisHastings(_get_proposal(prior))
 
 # ------------------------------------------------------------------------------------------
 # Use emulated model in sampler
@@ -261,7 +281,7 @@ function AdvancedMH.transition(
     model::AdvancedMH.DensityModel,
     params,
     log_density::Real,
-) where {MHS <: Union{BarkerMetropolisHastings, MetropolisAdjustedLangevin, pCNMetropolisHastings, RWMetropolisHastings}}
+) where {MHS <: Union{HMCMetropolisHastings, BarkerMetropolisHastings, MetropolisAdjustedLangevin, pCNMetropolisHastings, RWMetropolisHastings}}
     return MCMCState(params, log_density, true)
 end
 
@@ -322,6 +342,49 @@ function AdvancedMH.propose(
     return current_state.params .+ b .* xi
 end
 
+# method extending AdvancedMH.propose() for the HMC proposal
+function AdvancedMH.propose(
+    rng::Random.AbstractRNG,
+    sampler::HMCMetropolisHastings,
+    model::AdvancedMH.DensityModel,
+    current_state::MCMCState;
+    stepsize::FT = 1.0,
+) where {FT <: AbstractFloat}
+    # Compute the gradient of the log-density at the current state
+    sqrt_step = sqrt(stepsize)
+    # L = floor(1 / sqrt_step)
+    L = 4
+    proposed_aux_init = rand(rng, sampler.proposal)
+    proposed_state_init = current_state.params
+    proposed_aux = proposed_aux_init
+    proposed_state = proposed_state_init
+    log_grad_proposed_state = ForwardDiff.gradient(x -> AdvancedMH.logdensity(model, x), current_state.params)
+
+    for t in 1:L-1
+        println("Iteration t = ", t)
+        println("Before update, proposed_state: ", proposed_state)
+        log_gradient = log_grad_proposed_state
+        proposed_state .+= sqrt_step .* proposed_aux - (stepsize / 2) .* log_grad_proposed_state
+        log_grad_proposed_state = ForwardDiff.gradient(x -> AdvancedMH.logdensity(model, x), proposed_state)
+        proposed_aux .+= - (sqrt_step / 2) .* log_gradient .- (sqrt_step / 2) .* log_grad_proposed_state
+        println("After update, proposed_state: ", proposed_state)
+        println("proposed_aux: ", proposed_aux)
+    end
+    return proposed_state
+
+    for t in 1:L-1
+        println("Iteration t = ", t)
+        println("Before update, proposed_state: ", proposed_state)
+
+        proposed_state .= proposed_state .+ sqrt_step .* proposed_aux .- (stepsize / 2) .* log_grad_proposed_state
+        log_grad_proposed_state = ForwardDiff.gradient(x -> AdvancedMH.logdensity(model, x), proposed_state)
+
+        proposed_aux .= proposed_aux .+ (- sqrt_step / 2) .* log_grad_proposed_state .- (sqrt_step / 2) .* log_grad_proposed_state
+
+        println("After update, proposed_state: ", proposed_state)
+        println("proposed_aux: ", proposed_aux)
+    end
+end
 # Copy a MCMCState and set accepted = false
 reject_transition(t::MCMCState) = MCMCState(t.params, t.log_density, false)
 
@@ -488,8 +551,10 @@ decorrelation) that was applied in the Emulator. It creates and wraps an instanc
     Crank-Nicholson algorithm, which has a well-behaved small-stepsize limit.
   - [`MALASampling`](@ref): Metropolis-Hastings sampling using the Metropolis
     -adjusted Langevin algorithm, which exploits the gradient information of the target.
-  - [`BarkerSampling`](@ref): Metropolis-Hastings sampling using the preconditioned
-    Crank-Nicholson algorithm, which has a robustness to choosing step-size parameters.
+  - [`BarkerSampling`](@ref): Metropolis-Hastings sampling using the Barker
+    proposal, which has a robustness to choosing step-size parameters.
+  - [`HMCSampling`](@ref): Metropolis-Hastings sampling using the Hamiltonian
+    Monte Carlo algorithm, which is a momentum-added gradient-based MCMC .
 
 - `obs_sample`: A single sample from the observations. Can, e.g., be picked from an
   Observation struct using `get_obs_sample`.
@@ -697,4 +762,4 @@ function get_posterior(mcmc::MCMCWrapper, chain::MCMCChains.Chains)
     ])
     return posterior_distribution
 end
-end # module MMCMC
+end

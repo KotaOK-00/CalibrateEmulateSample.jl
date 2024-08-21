@@ -10,7 +10,7 @@ using Plots
 using Random
 using JLD2
 
-# CES 
+# CES
 using CalibrateEmulateSample.Emulators
 using CalibrateEmulateSample.MarkovChainMonteCarlo
 using CalibrateEmulateSample.Utilities
@@ -37,17 +37,17 @@ function main()
 
     cases = [
         "GP", # diagonalize, train scalar GP, assume diag inputs
-        "RF-scalar-diagin", # diagonalize, train scalar RF, assume diag inputs (most comparable to GP)
-        "RF-scalar", # diagonalize, train scalar RF, don't asume diag inputs
-        "RF-vector-svd-diag",
-        "RF-vector-svd-nondiag",
-        "RF-vector-nosvd-diag",
-        "RF-vector-nosvd-nondiag",
-        "RF-vector-svd-nonsep",
+        # "RF-scalar-diagin", # diagonalize, train scalar RF, assume diag inputs (most comparable to GP)
+        # "RF-scalar", # diagonalize, train scalar RF, don't asume diag inputs
+        # "RF-vector-svd-diag",
+        # "RF-vector-svd-nondiag",
+        # "RF-vector-nosvd-diag",
+        # "RF-vector-nosvd-nondiag",
+        # "RF-vector-svd-nonsep",
     ]
 
-    #### CHOOSE YOUR CASE: 
-    mask = 1:8 # 1:8 # e.g. 1:8 or [7]
+    #### CHOOSE YOUR CASE:
+    mask = [1] # 1:8 # e.g. 1:8 or [7]
     for (case) in cases[mask]
 
 
@@ -164,7 +164,7 @@ function main()
         #norm_factor = vcat(norm_factor...)
         norm_factor = fill(norm_factor, size(truth_sample))
 
-        # Get training points from the EKP iteration number in the second input term  
+        # Get training points from the EKP iteration number in the second input term
         N_iter = min(max_iter, length(get_u(ekiobj)) - 1) # number of paired iterations taken from EKP
         min_iter = min(max_iter, max(1, min_iter))
         input_output_pairs = Utilities.get_training_points(ekiobj, min_iter:(N_iter - 1))
@@ -273,11 +273,11 @@ function main()
         plot!(p.subplots[3], [truth_params_constrained[2]], seriestype = "hline", w = 1.5, c = :steelblue, ls = :dash) # hline on right histogram
         plot!(p.subplots[2], [truth_params_constrained[1]], seriestype = "vline", w = 1.5, c = :steelblue, ls = :dash) # v & h line on scatter.
         plot!(p.subplots[2], [truth_params_constrained[2]], seriestype = "hline", w = 1.5, c = :steelblue, ls = :dash)
+        ylims!(p.subplots[2], (2,3))
         figpath = joinpath(figure_save_directory, "posterior_2d-" * case * ".pdf")
         savefig(figpath)
         figpath = joinpath(figure_save_directory, "posterior_2d-" * case * ".png")
         savefig(figpath)
-
 
         # Save data
         save(

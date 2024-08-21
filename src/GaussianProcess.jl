@@ -287,6 +287,10 @@ end
 
 function optimize_hyperparameters!(gp::GaussianProcess{SKLJL}, args...; kwargs...)
     println("SKlearn, already trained. continuing...")
+#    for (i, model) in enumerate(gp.models)
+#        println("Model $i hyperparameters:")
+#        println(model.kernel.hyperparameters)
+#    end
 end
 
 function _SKJL_predict_function(gp_model::PyObject, new_inputs::AbstractMatrix{FT}) where {FT <: AbstractFloat}
@@ -370,11 +374,24 @@ function build_models!(
         # push!(models, post_fx)
         # println(post_fx)
     end
-
+    ##############################################################################
+    # Notes on borrowing hyperparameters optimised within GPJL:
+    # optimisation of the GPJL with default kernels produces kernel parameters
+    # in the way of [a b c], where:
+    # c is the log_const_value
+    # [a b] is the rbf_len: lengthscale parameters for SEArd kernel
+    ##############################################################################
+    ########################
+    # in the Sinusoid example:
     log_const_value = [2.9031145778344696; 3.8325906110973795]
     const_value = exp.(2 .* log_const_value)
     rbf_len = [1.9952706691900783 3.066374123568536; 5.783676639895112 2.195849064147456]
-
+    ########################
+    # in the Lorenz example:
+    # log_const_value = [2.3932175760896013]
+    # const_value = exp.(2 .* log_const_value)
+    # rbf_len = [1.866547062358829 3.2448512817054707]
+    ########################
     for i in 1:N_models
         opt_kern = const_value[i] * (KernelFunctions.SqExponentialKernel() ∘ ARDTransform(1 ./ exp.(rbf_len[i, :])))
         opt_f = AbstractGPs.GP(opt_kern)
@@ -388,23 +405,60 @@ function build_models!(
     end
 
 end
-#1/exp(v)
+
+#=
 
 
+
+
+
+
+
+=#
+
+# using Optim
+# using ParameterHandling
 
 #Optimisation
 function optimize_hyperparameters!(
     gp::GaussianProcess{AGPJL}, args...; kwargs...)
     # `kwargs`: Keyword arguments for the optimize function from the Optim package
     N_models = length(gp.models)
+    #=
     for i in 1:N_models
-        # always regress with noise_learn=false; if gp was created with noise_learn=true
-        # we've already explicitly added noise to the kernel
+        function loss(θ)
+            fx = build_finite_gp(θ, gp.models[i])
+            lml = logpdf(fx, ytrain)
+            return -lml
+        end
+        θ_init = gp.models[i].θ #### θ should be kernel hyperparameters extracted from gp.models
+        θ_flat_init, unflatten = ParameterHandling.value_flatten(θ_init)
+        loss_packed = loss ∘ unflatten
 
-        #optimize!(gp.models[i], args...; noise = false, kwargs...)
+        function fg!(F, G, x)
+            if F !== nothing && G !== nothing
+                val = loss_packed(x)
+                grad = ForwardDiff.gradient(loss_packed, x)
+                G .= grad
+                return val
+            elseif G !== nothing
+                grad = ForwardDiff.gradient(loss_packed, x)
+                G .= grad
+                return nothing
+            elseif F !== nothing
+                return loss_packed(x)
+            end
+        end
 
-        println("optimized hyperparameters of GP: ", i)
+        options = Optim.Options(; iterations=maxiter, show_trace=true)
+
+        result = optimize(Optim.only_fg!(fg!), θ_flat_init, optimizer, options; inplace=false)
+        θ_opt = unflatten(result.minimizer)
+        gp.models[i].θ = ParameterHandling.value(θ_opt)
+
+        println("Optimized hyperparameters of GP model ", i)
     end
+    =#
 end
 
 function predict(
