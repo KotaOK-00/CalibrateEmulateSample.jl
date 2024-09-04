@@ -8,8 +8,8 @@ ENV["GKSwstype"] = "100"
 using Plots
 using Random
 using JLD2
-
-# CES 
+using Dates
+# CES
 using CalibrateEmulateSample.Emulators
 using CalibrateEmulateSample.MarkovChainMonteCarlo
 using CalibrateEmulateSample.Utilities
@@ -24,7 +24,7 @@ function main()
         "GP", # diagonalize, train scalar GP, assume diag inputs
     ]
 
-    #### CHOOSE YOUR CASE: 
+    #### CHOOSE YOUR CASE:
     mask = [1] # 1:8 # e.g. 1:8 or [7]
     for (case) in cases[mask]
 
@@ -53,10 +53,13 @@ function main()
         end
 
         ekiobj = load(data_save_file)["eki"]
+        eigenfuncs = load(data_save_file)["eigenfuncs"]
+        pts_per_dim = load(data_save_file)["pts_per_dim"]
         prior = load(data_save_file)["prior"]
+        darcy = load(data_save_file)["darcy"]
         truth_sample = load(data_save_file)["truth_sample"]
         truth_params_constrained = load(data_save_file)["truth_input_constrained"] #true parameters in constrained space
-        truth_params = load(data_save_file)["truth_input_unconstrained"] #true parameters in unconstrained space  
+        truth_params = load(data_save_file)["truth_input_unconstrained"] #true parameters in unconstrained space
         Γy = get_obs_noise_cov(ekiobj)
 
 
@@ -68,6 +71,7 @@ function main()
 
         # Emulate-sample settings
         # choice of machine-learning tool in the emulation stage
+        nugget = 1e-12
         if case == "GP"
             #            gppackage = Emulators.SKLJL()
             gppackage = Emulators.GPJL()
@@ -75,7 +79,7 @@ function main()
         end
 
 
-        # Get training points from the EKP iteration number in the second input term  
+        # Get training points from the EKP iteration number in the second input term
         N_iter = min(max_iter, length(get_u(ekiobj)) - 1) # number of paired iterations taken from EKP
         min_iter = min(max_iter, max(1, min_iter))
         input_output_pairs = Utilities.get_training_points(ekiobj, min_iter:(N_iter - 1))
@@ -130,10 +134,27 @@ function main()
 
         # Now begin the actual MCMC
         println("Begin MCMC - with step size ", new_step)
-        chain = MarkovChainMonteCarlo.sample(mcmc, 100_000; stepsize = new_step, discard_initial = 2_000)
+        T = 100_000
+        start_time = now()
+        chain = MarkovChainMonteCarlo.sample(mcmc, T; stepsize = new_step, discard_initial = 2_000)
+        end_time = now()
+
+        total_time = (end_time - start_time).value
+        println("Total MCMC sampling time: ", total_time, " seconds")
+        spiter = total_time / T
+        println("spiter: ", spiter)
+        acc_prob = accept_ratio(chain)
+        println("acceptance probability: ", acc_prob)
+
+        #=
+        ess_values = MCMCChains.ess(chain)
+        println("Effective Sample Size (ESS): ", ess_values)
+        println("Min ESS: ", minimum(ess_values))
+        println("Median ESS: ", median(ess_values))
+        println("Max ESS: ", maximum(ess_values))
+        =#
 
         posterior = MarkovChainMonteCarlo.get_posterior(mcmc, chain)
-
         post_mean = mean(posterior)
         post_cov = cov(posterior)
         println("post_mean")
@@ -147,37 +168,68 @@ function main()
         param_names = get_name(posterior)
 
         posterior_samples = reduce(vcat, [get_distribution(posterior)[name] for name in get_name(posterior)]) #samples are columns of this matrix
-        n_post = size(posterior_samples, 2)
-        plot_sample_id = (n_post - 1000):n_post
-        constrained_posterior_samples =
-            transform_unconstrained_to_constrained(prior, posterior_samples[:, plot_sample_id])
+        println(size(posterior_samples))
+        constrained_posterior_samples = mapslices(x -> transform_unconstrained_to_constrained(posterior, x), posterior_samples, dims = 1)
+        constrained_post_mean  = mean(constrained_posterior_samples, dims = 2)
+        constrained_post_cov  = cov(constrained_posterior_samples, dims = 2)
+        println("constrained_post_mean")
+        println(constrained_post_mean)
+        println("constrained_post_cov")
+        println(constrained_post_cov)
 
-        N, L = 80, 1.0
-        pts_per_dim = LinRange(0, L, N)
+        constrained_post_κ_field = eigenfuncs * constrained_posterior_samples
 
-        κ_ens_mean = reshape(mean(constrained_posterior_samples, dims = 2), N, N)
+        println("size of constrained_post_κ_field: ", size(constrained_post_κ_field))
+        println("size of mean of constrained_post_κ_field: ", size(mean(constrained_post_κ_field, dims = 2)))
+        println("size(constrained_post_κ_field)", size(constrained_post_κ_field))
+        N = Int(sqrt(size(constrained_post_κ_field, 1)))
+        println("N: ", N)
+        κ_post_mean = reshape(vec(mean(constrained_post_κ_field, dims = 2)), N, N)
+        κ_post_ptw_var = reshape(vec(var(constrained_post_κ_field, dims = 2)), N, N)
+
+        #... plot etc
+        #=
+        n_params = size(posterior_samples, 1)
+        p_tp = plot(1:T, posterior_samples[:, 1:2], label="MALA",
+        color=colors[1], xlabel="Iteration (t)", ylabel="d_t", title="samples", lw=2)
+        figpath = joinpath(figure_save_directory, "posterior_MCMC_" * case * ".pdf")
+        savefig(figpath)
+        figpath = joinpath(figure_save_directory, "posterior_MCMC_" * case * ".png")
+        savefig(figpath)
+        =#
+
+
+
+        gr(size = (1500, 400), legend = false)
         p1 = contour(
             pts_per_dim,
             pts_per_dim,
-            κ_ens_mean',
+            κ_post_mean',    # analogue to κ_true', κ_ens_mean'
             fill = true,
             levels = 15,
-            title = "kappa mean",
-            colorbar = true,
+            title = "kappa posterior mean",
+            colorbar = true
         )
-        κ_ens_ptw_var = reshape(var(constrained_posterior_samples, dims = 2), N, N)
+
         p2 = contour(
             pts_per_dim,
             pts_per_dim,
-            κ_ens_ptw_var',
+            κ_post_ptw_var',
             fill = true,
             levels = 15,
-            title = "kappa var",
+            title = "kappa posterior var",
             colorbar = true,
         )
-        l = @layout [a b]
-        plt = plot(p1, p2, layout = l)
-        savefig(plt, joinpath(data_save_directory, "posterior_pointwise_uq.png"))
+
+        post_h_2d = solve_Darcy_2D(darcy, κ_post_mean)
+        p3 = contour(pts_per_dim, pts_per_dim, post_h_2d', fill = true, levels = 15, title = "pressure", colorbar = true)
+        l = @layout [a b c]
+        plt = plot(p1, p2, p3, layout = l)
+        savefig(plt, joinpath(fig_save_directory, "output_post_GP.png")) # pre update
+        # or savefig(plt, joinpath(fig_save_directory, "output_it_" * string(n_iter) * ".png")) # pre update
+        # println("Final coefficients (ensemble mean):")
+        # println(get_u_mean_final(ekiobj))    # or println(get_u_mean_final(ekiobj))
+
 
         # Save data
         save(
