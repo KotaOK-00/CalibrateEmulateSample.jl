@@ -26,6 +26,10 @@ export EmulatorPosteriorModel,
     MALASampling,
     BarkerSampling,
     HMCSampling,
+    infMALASampling,
+    infHMCSampling,
+    infmMALASampling,
+    infmHMCSampling,
     MCMCWrapper,
     accept_ratio,
     optimize_stepsize,
@@ -199,6 +203,83 @@ AdvancedMH.logratio_proposal_density(
 ) = AdvancedMH.logratio_proposal_density(sampler.proposal, transition_prev.params, candidate)
 
 MetropolisHastingsSampler(::HMCSampling, prior::ParameterDistribution) = HMCMetropolisHastings(_get_proposal(prior))
+"""
+$(DocStringExtensions.TYPEDEF)
+
+[`MCMCProtocol`](@ref) which uses Metropolis-Hastings sampling that generates proposals for
+new parameters according to the infinite-dimensional MALA proposal.
+"""
+struct infMALASampling <: MCMCProtocol end
+
+struct infMALAMetropolisHastings{D} <: AdvancedMH.MHSampler
+    proposal::D
+end
+# Define method needed by AdvancedMH for new Sampler
+AdvancedMH.logratio_proposal_density(
+    sampler::infMALAMetropolisHastings,
+    transition_prev::AdvancedMH.AbstractTransition,
+    candidate,
+) = AdvancedMH.logratio_proposal_density(sampler.proposal, transition_prev.params, candidate)
+
+MetropolisHastingsSampler(::infMALASampling, prior::ParameterDistribution) = infMALAMetropolisHastings(_get_proposal(prior))
+"""
+$(DocStringExtensions.TYPEDEF)
+
+[`MCMCProtocol`](@ref) which uses Metropolis-Hastings sampling that generates proposals for
+new parameters according to the infinite-dimensional HMC proposal.
+"""
+struct infHMCSampling <: MCMCProtocol end
+
+struct infHMCMetropolisHastings{D} <: AdvancedMH.MHSampler
+    proposal::D
+end
+# Define method needed by AdvancedMH for new Sampler
+AdvancedMH.logratio_proposal_density(
+    sampler::infHMCMetropolisHastings,
+    transition_prev::AdvancedMH.AbstractTransition,
+    candidate,
+) = AdvancedMH.logratio_proposal_density(sampler.proposal, transition_prev.params, candidate)
+
+MetropolisHastingsSampler(::infHMCSampling, prior::ParameterDistribution) = infHMCMetropolisHastings(_get_proposal(prior))
+"""
+$(DocStringExtensions.TYPEDEF)
+
+[`MCMCProtocol`](@ref) which uses Metropolis-Hastings sampling that generates proposals for
+new parameters according to the infinite-dimensional mMALA proposal.
+"""
+struct infmMALASampling <: MCMCProtocol end
+
+struct infmMALAMetropolisHastings{D} <: AdvancedMH.MHSampler
+    proposal::D
+end
+# Define method needed by AdvancedMH for new Sampler
+AdvancedMH.logratio_proposal_density(
+    sampler::infmMALAMetropolisHastings,
+    transition_prev::AdvancedMH.AbstractTransition,
+    candidate,
+) = AdvancedMH.logratio_proposal_density(sampler.proposal, transition_prev.params, candidate)
+
+MetropolisHastingsSampler(::infmMALASampling, prior::ParameterDistribution) = infmMALAMetropolisHastings(_get_proposal(prior))
+"""
+$(DocStringExtensions.TYPEDEF)
+
+[`MCMCProtocol`](@ref) which uses Metropolis-Hastings sampling that generates proposals for
+new parameters according to the infinite-dimensional mHMC proposal.
+"""
+struct infmHMCSampling <: MCMCProtocol end
+
+struct infmHMCMetropolisHastings{D} <: AdvancedMH.MHSampler
+    proposal::D
+end
+# Define method needed by AdvancedMH for new Sampler
+AdvancedMH.logratio_proposal_density(
+    sampler::infmHMCMetropolisHastings,
+    transition_prev::AdvancedMH.AbstractTransition,
+    candidate,
+) = AdvancedMH.logratio_proposal_density(sampler.proposal, transition_prev.params, candidate)
+
+MetropolisHastingsSampler(::infmHMCSampling, prior::ParameterDistribution) = infmHMCMetropolisHastings(_get_proposal(prior))
+
 
 # ------------------------------------------------------------------------------------------
 # Use emulated model in sampler
@@ -281,7 +362,7 @@ function AdvancedMH.transition(
     model::AdvancedMH.DensityModel,
     params,
     log_density::Real,
-) where {MHS <: Union{HMCMetropolisHastings, BarkerMetropolisHastings, MetropolisAdjustedLangevin, pCNMetropolisHastings, RWMetropolisHastings}}
+) where {MHS <: Union{infmHMCMetropolisHastings, infmMALAMetropolisHastings, infHMCMetropolisHastings, infMALAMetropolisHastings, HMCMetropolisHastings, BarkerMetropolisHastings, MetropolisAdjustedLangevin, pCNMetropolisHastings, RWMetropolisHastings}}
     return MCMCState(params, log_density, true)
 end
 
@@ -371,20 +452,104 @@ function AdvancedMH.propose(
         println("proposed_aux: ", proposed_aux)
     end
     return proposed_state
+end
+
+# method extending AdvancedMH.propose() for  ∞-MALA
+function AdvancedMH.propose(
+    rng::Random.AbstractRNG,
+    sampler::infMALAMetropolisHastings,
+    model::AdvancedMH.DensityModel,
+    current_state::MCMCState;
+    stepsize::FT = 1.0,
+) where {FT <: AbstractFloat}
+        # Compute the gradient of the log-density at the current state
+        ρ = (1 - stepsize / 4) / (1 + stepsize / 4)
+        log_gradient = ForwardDiff.gradient(x -> AdvancedMH.logdensity(model, x), current_state.params)
+        proposed_state = ρ * current_state.params .+ sqrt(1 - ρ^2) * (stepsize / 2) .* log_gradient .+ sqrt(1 - ρ^2) * sqrt(stepsize) * rand(rng, sampler.proposal)
+        return proposed_state
+end
+
+# method extending AdvancedMH.propose() for the  ∞-HMC proposal
+function AdvancedMH.propose(
+    rng::Random.AbstractRNG,
+    sampler::infHMCMetropolisHastings,
+    model::AdvancedMH.DensityModel,
+    current_state::MCMCState;
+    stepsize::FT = 1.0,
+) where {FT <: AbstractFloat}
+    # Compute the gradient of the log-density at the current state
+    sqrt_step = sqrt(stepsize)
+    # L = floor(1 / sqrt_step)
+    L = 4
+    proposed_aux_init = rand(rng, sampler.proposal)
+    proposed_state_init = current_state.params
+    proposed_aux = proposed_aux_init
+    proposed_state = proposed_state_init
+    log_grad_proposed_state = ForwardDiff.gradient(x -> AdvancedMH.logdensity(model, x), current_state.params)
 
     for t in 1:L-1
         println("Iteration t = ", t)
         println("Before update, proposed_state: ", proposed_state)
-
-        proposed_state .= proposed_state .+ sqrt_step .* proposed_aux .- (stepsize / 2) .* log_grad_proposed_state
+        log_gradient = log_grad_proposed_state
+        proposed_state .+= sqrt_step .* proposed_aux - (stepsize / 2) .* log_grad_proposed_state
         log_grad_proposed_state = ForwardDiff.gradient(x -> AdvancedMH.logdensity(model, x), proposed_state)
-
-        proposed_aux .= proposed_aux .+ (- sqrt_step / 2) .* log_grad_proposed_state .- (sqrt_step / 2) .* log_grad_proposed_state
-
+        proposed_aux .+= - (sqrt_step / 2) .* log_gradient .- (sqrt_step / 2) .* log_grad_proposed_state
         println("After update, proposed_state: ", proposed_state)
         println("proposed_aux: ", proposed_aux)
     end
+    return proposed_state
 end
+
+# method extending AdvancedMH.propose() for  ∞-mMALA
+function AdvancedMH.propose(
+    rng::Random.AbstractRNG,
+    sampler::infmMALAMetropolisHastings,
+    model::AdvancedMH.DensityModel,
+    current_state::MCMCState;
+    stepsize::FT = 1.0,
+) where {FT <: AbstractFloat}
+        # Compute the gradient of the log-density at the current state
+        ρ = (1 - stepsize / 4) / (1 + stepsize / 4)
+        log_gradient = ForwardDiff.gradient(x -> AdvancedMH.logdensity(model, x), current_state.params)
+        hessian = ForwardDiff.hessian(x -> AdvancedMH.logdensity(model, x), current_state.params)
+        K_u = inv(hessian)
+        C_inv = I
+        nu = (stepsize / 2) .* (-K_u * (C_inv - inv(K_u)) * u + K_u * log_gradient) .+ sqrt(stepsize) * rand(rng, sampler.proposal)
+        proposed_state = ρ * current_state.params .+ sqrt(1 - ρ^2) * nu
+        return proposed_state
+end
+
+# method extending AdvancedMH.propose() for the  ∞-mHMC proposal
+function AdvancedMH.propose(
+    rng::Random.AbstractRNG,
+    sampler::infmHMCMetropolisHastings,
+    model::AdvancedMH.DensityModel,
+    current_state::MCMCState;
+    stepsize::FT = 1.0,
+) where {FT <: AbstractFloat}
+    # Compute the gradient of the log-density at the current state
+    sqrt_step = sqrt(stepsize)
+    # L = floor(1 / sqrt_step)
+    L = 4
+    proposed_aux_init = rand(rng, sampler.proposal)
+    proposed_state_init = current_state.params
+    proposed_aux = proposed_aux_init
+    proposed_state = proposed_state_init
+    log_grad_proposed_state = ForwardDiff.gradient(x -> AdvancedMH.logdensity(model, x), current_state.params)
+
+    for t in 1:L-1
+        println("Iteration t = ", t)
+        println("Before update, proposed_state: ", proposed_state)
+        log_gradient = log_grad_proposed_state
+        proposed_state .+= sqrt_step .* proposed_aux - (stepsize / 2) .* log_grad_proposed_state
+        log_grad_proposed_state = ForwardDiff.gradient(x -> AdvancedMH.logdensity(model, x), proposed_state)
+        proposed_aux .+= - (sqrt_step / 2) .* log_gradient .- (sqrt_step / 2) .* log_grad_proposed_state
+        println("After update, proposed_state: ", proposed_state)
+        println("proposed_aux: ", proposed_aux)
+    end
+    return proposed_state
+end
+
 # Copy a MCMCState and set accepted = false
 reject_transition(t::MCMCState) = MCMCState(t.params, t.log_density, false)
 
@@ -554,7 +719,15 @@ decorrelation) that was applied in the Emulator. It creates and wraps an instanc
   - [`BarkerSampling`](@ref): Metropolis-Hastings sampling using the Barker
     proposal, which has a robustness to choosing step-size parameters.
   - [`HMCSampling`](@ref): Metropolis-Hastings sampling using the Hamiltonian
-    Monte Carlo algorithm, which is a momentum-added gradient-based MCMC .
+    Monte Carlo algorithm, which is a momentum-added gradient-based MCMC.
+  - [`infMALASampling`](@ref): Metropolis-Hastings sampling using the infinite dimensional
+    MALA, which exploits the gradient information and has a well-behaved small-stepsize limit.
+  - [`infHMCSampling`](@ref): Metropolis-Hastings sampling using the infinite dimensional
+    HMC, which is a momentum-added gradient-based and has a well-behaved small-stepsize limit.
+  - [`infmMALASampling`](@ref): Metropolis-Hastings sampling using the ∞-mMALA,
+    which is geometry-informed and has a well-behaved small-stepsize limit.
+  - [`infmHMCSampling`](@ref): Metropolis-Hastings sampling using the ∞-mHMC,
+    which is geometry-informed and has a well-behaved small-stepsize limit.
 
 - `obs_sample`: A single sample from the observations. Can, e.g., be picked from an
   Observation struct using `get_obs_sample`.
@@ -748,13 +921,20 @@ function get_posterior(mcmc::MCMCWrapper, chain::MCMCChains.Chains)
     p_names = get_name(mcmc.prior)
     p_slices = batch(mcmc.prior)
     flat_constraints = get_all_constraints(mcmc.prior)
-    # live in same space as prior
-    p_constraints = [flat_constraints[slice] for slice in p_slices]
 
     # Cast data in chain to a ParameterDistribution object. Data layout in Chain is an
     # (N_samples x n_params x n_chains) AxisArray, so samples are in rows.
     p_chain = Array(Chains(chain, :parameters)) # discard internal/diagnostic data
     p_samples = [Samples(p_chain[:, slice, 1], params_are_columns = false) for slice in p_slices]
+
+    # live in same space as prior
+    # checks if a function distribution, by looking at if the distribution is nested
+    p_constraints = [
+        !isa(get_distribution(mcmc.prior)[pn], ParameterDistribution) ? # if not func-dist
+        flat_constraints[slice] : # constraints are slice
+        get_all_constraints(get_distribution(mcmc.prior)[pn]) # get constraints of nested dist
+        for (pn, slice) in zip(p_names, p_slices)
+    ]
 
     # distributions created as atoms and pieced together
     posterior_distribution = combine_distributions([

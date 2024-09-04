@@ -129,8 +129,8 @@ function build_models!(
         # Construct kernel:
         # Note that the kernels take the signal standard deviations on a
         # log scale as input.
-        rbf_len = log.(ones(size(input_values, 1)))
-        rbf_logstd = log(1.0)
+        rbf_len = log.(ones(size(input_values, 1))) .+ 1e-3
+        rbf_logstd = log(1.0) +1e-3
         rbf = SEArd(rbf_len, rbf_logstd)
         kern = rbf
         println("Using default squared exponential kernel: ", kern)
@@ -141,7 +141,7 @@ function build_models!(
 
     if gp.noise_learn
         # Add white noise to kernel
-        white_logstd = log(1.0)
+        white_logstd = 1.0
         white = Noise(white_logstd)
         kern = kern + white
         println("Learning additive white noise")
@@ -180,11 +180,34 @@ Warning: if one uses `GPJL()` and wishes to modify positional arguments. The fir
 """
 function optimize_hyperparameters!(gp::GaussianProcess{GPJL}, args...; kwargs...)
     N_models = length(gp.models)
+    num_params = 0
+
+    println("type of fieldnames of num_params: ", fieldnames(typeof(gp.models[1].kernel)))
+    kernel = gp.models[1].kernel
+    if isa(kernel, GaussianProcesses.SumKernel)
+        println("SumKernel components:")
+        for k in (kernel.kleft, kernel.kright)
+            println("Kernel: $(typeof(k))")
+            for field in fieldnames(typeof(k))
+                value = getfield(k, field)
+                length_value = isa(value, AbstractArray) ? length(value) : 1
+                num_params += length_value
+            end
+        end
+    else
+        println("Single Kernel: $(typeof(kernel))")
+        for field in fieldnames(typeof(kernel))
+            value = getfield(kernel, field)
+            length_value = isa(value, AbstractArray) ? length(value) : 1
+            num_params += length_value
+        end
+    end
+    println("num_params: ", num_params)
+
     for i in 1:N_models
         # always regress with noise_learn=false; if gp was created with noise_learn=true
         # we've already explicitly added noise to the kernel
-
-        optimize!(gp.models[i], args...; noise = false, kwargs...)
+        optimize!(gp.models[i], args...; kernbounds = [fill(1e-5, num_params), fill(1e4, num_params)], noise = false, kwargs...)
         println("optimized hyperparameters of GP: ", i)
         println(gp.models[i].kernel)
     end
@@ -279,8 +302,9 @@ function build_models!(
             print("Completed training of: ")
         end
         println(i, ", ")
+        get_params(m)
         push!(models, m)
-        println(m.kernel)
+
     end
 end
 
@@ -291,6 +315,7 @@ function optimize_hyperparameters!(gp::GaussianProcess{SKLJL}, args...; kwargs..
 #        println("Model $i hyperparameters:")
 #        println(model.kernel.hyperparameters)
 #    end
+    get_params(gp)
 end
 
 function _SKJL_predict_function(gp_model::PyObject, new_inputs::AbstractMatrix{FT}) where {FT <: AbstractFloat}

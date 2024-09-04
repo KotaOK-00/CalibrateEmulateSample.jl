@@ -489,8 +489,8 @@ ESJD =#
 
 # plotting convergences of the chain in terms of l_2 distance for diagonal covariance and MSE
 
-T = 500_000
-plots_id = T-10_000:T
+T = 10_000
+plots_id = 2:T
 num_repeats = 1
 methods = [MALASampling(), RWMHSampling(), pCNMHSampling(), BarkerSampling()]
 sigmas = [0.0099, 0.0099, 0.0099, 0.0099]
@@ -500,7 +500,7 @@ samples_all = zeros(Float64, T, 2*length(methods))
 d_t_values_all = zeros(Float64, T, length(methods))
 frob_values_all = zeros(Float64, T, length(methods))
 mse_values_all = zeros(Float64, T, length(methods))
-# msle_values_all = zeros(Float64, T, length(methods))
+msle_values_all = zeros(Float64, T, length(methods))
 
 for (j, method) in enumerate(methods)
     sum_samples = zeros(Float64, T, 2)
@@ -592,7 +592,7 @@ for (j, method) in enumerate(methods)
 
     for t in plots_id
         sample_mean = mean(samples[1:t, :], dims=1)
-        msle_values_all[t, j] = mean((sample_mean[:] - mean_true).^2)
+        msle_values_all[t, j] = log(1 + mean((sample_mean[:] - mean_true).^2))
     end
 
 end
@@ -645,7 +645,7 @@ savefig(plot_mse2, joinpath(data_save_directory, "sinusoid_MCMC_mse2_convergence
 
 
 plot_msle = plot(plots_id, msle_values_all[plots_id, 1], label="MSLE MALA",
-color=colors[1], xlabel="Iteration (t)", ylabel="MSE",
+color=colors[1], xlabel="Iteration (t)", ylabel="MSLE",
 title="Convergence of MSLE over iterations", lw=2)
 plot!(plots_id, msle_values_all[plots_id, 2], label="MSLE RW", color=colors[2], lw=2)
 plot!(plots_id, msle_values_all[plots_id, 3], label="MSLE pCN", color=colors[3], lw=2)
@@ -654,7 +654,7 @@ display(plot_msle)
 savefig(plot_msle, joinpath(data_save_directory, "sinusoid_MCMC_msle_convergence.png"))
 
 plot_msle = plot(plots_id, msle_values_all[plots_id, 1], label="MSLE MALA",
-color=colors[1], xlabel="Iteration (t)", ylabel="MSE",
+color=colors[1], xlabel="Iteration (t)", ylabel="MSLE",
 title="Convergence of MSLE over iterations", lw=2)
 plot!(plots_id, msle_values_all[plots_id, 2], label="MSLE RW", color=colors[2], lw=2)
 plot!(plots_id, msle_values_all[plots_id, 4], label="MSLE BARKER", color=colors[4], lw=2)
