@@ -13,6 +13,8 @@ using LinearAlgebra, Random
 
 using Distributions, Plots
 using JLD2
+using Dates
+using StatsBase
 
 using CalibrateEmulateSample
 using CalibrateEmulateSample.Emulators
@@ -63,7 +65,7 @@ new_step =0.01
 # Now begin the actual MCMC
 T = 10_000
 # println("Begin MCMC - with step size ", new_step)     # 0.4
-
+=#
 
 ########################
 #=
@@ -94,7 +96,7 @@ println("Barker end")
 =#
 ########################
 
-
+#=
 # We can print summary statistics of the MCMC chain
 display(chain)
 posterior = MarkovChainMonteCarlo.get_posterior(mcmc, chain)
@@ -222,7 +224,7 @@ plot_all = plot(
 )
 
 savefig(plot_all, joinpath(data_save_directory, "sinusoid_MCMC_hist_GP.png"))
-
+=#
 
 #=
 ### MCMC Sampling using Random Features Emulator
@@ -349,10 +351,14 @@ savefig(plot_all, joinpath(data_save_directory, "sinusoid_MCMC_hist_RF.png"))
 # both GP and RF emulators give very similar posterior distributions.
 =#
 
-=#
 
 
-#= ESJD
+
+
+
+
+#=
+# ESJD
 # computing ESJD
 function compute_ESJD(sigma_vec::Vector{Float64}, T::Int, n::Int, method)::Matrix{Float64}
     ESJD = Matrix{Float64}(undef, length(sigma_vec), n)
@@ -364,7 +370,7 @@ end
 
 function grad_MCMC_ESJD(T::Int, n::Int, method, sigma::Float64)
     mcmc = MCMCWrapper(method, y_obs, prior, emulator_gp; init_params = init_sample)
-    chain = MarkovChainMonteCarlo.sample(mcmc, T; rng = rng, stepsize = sigma, discard_initial = 500)
+    chain = MarkovChainMonteCarlo.sample(mcmc, T; rng = rng, stepsize = sigma, discard_initial = 0)
     posterior = MarkovChainMonteCarlo.get_posterior(mcmc, chain)
     constrained_posterior = Emulators.transform_unconstrained_to_constrained(
     prior, MarkovChainMonteCarlo.get_distribution(posterior)
@@ -384,29 +390,49 @@ end
 T = 10_000
 n = 2
 sqrt_n = sqrt(n)
-sigma_vec = 2.38 ./ sqrt_n .* exp.(range(-7.5, stop = 3, length = 50))
+sigma_vec = 2.38 ./ sqrt_n .* exp.(range(-10, stop = 4, length = 40))
 println("sigma_vec: ", sigma_vec)
 ESJD_MALA = compute_ESJD(sigma_vec, T, n, MALASampling())
 ESJD_RW = compute_ESJD(sigma_vec, T, n, RWMHSampling())
 ESJD_pCN = compute_ESJD(sigma_vec, T, n, pCNMHSampling())
 ESJD_BARKER = compute_ESJD(sigma_vec, T, n, BarkerSampling())
-# ESJD_gBARKER = compute_ESJD(sigma_vec, T, n, guidedBarkerSampling())
 # ESJD_HMC = compute_ESJD(sigma_vec, T, n, HMCSampling())
+ESJD_infMALA = compute_ESJD(sigma_vec, T, n, infMALASampling())
+ESJD_infmMALA = compute_ESJD(sigma_vec, T, n, infmMALASampling())
 # println("ESJD_HMC: ", ESJD_HMC)
 
 println("maximum value of ESJD_MALA 1st: ", maximum(ESJD_MALA[:, 1]))
+println("at ", argmax(ESJD_MALA[:, 1]))
 println("maximum value of ESJD_RW 1st: ", maximum(ESJD_RW[:, 1]))
+println("at ", argmax(ESJD_RW[:, 1]))
 println("maximum value of ESJD_pCN 1st: ", maximum(ESJD_pCN[:, 1]))
+println("at ", argmax(ESJD_pCN[:, 1]))
 println("maximum value of ESJD_BARKER 1st: ", maximum(ESJD_BARKER[:, 1]))
-# println("maximum value of ESJD_gBARKER 1st: ", maximum(ESJD_gBARKER[:, 1]))
+println("at ", argmax(ESJD_BARKER[:, 1]))
 # println("maximum value of ESJD_HMC 1st: ", maximum(ESJD_HMC[:, 1]))
+# println("at ", argmax(ESJD_HMC[:, 1]))
+println("maximum value of ESJD_infMALA 1st: ", maximum(ESJD_infMALA[:, 1]))
+println("at ", argmax(ESJD_infMALA[:, 1]))
+
+println("maximum value of ESJD_infmMALA 1st: ", maximum(ESJD_infmMALA[:, 1]))
+println("at ", argmax(ESJD_infmMALA[:, 1]))
+
 
 println("maximum value of ESJD_MALA 2nd: ", maximum(ESJD_MALA[:, 2]))
+println("at ", argmax(ESJD_MALA[:, 2]))
 println("maximum value of ESJD_RW 2nd: ", maximum(ESJD_RW[:, 2]))
+println("at ", argmax(ESJD_RW[:, 2]))
 println("maximum value of ESJD_pCN 2nd: ", maximum(ESJD_pCN[:, 2]))
+println("at ", argmax(ESJD_pCN[:, 2]))
 println("maximum value of ESJD_BARKER 2nd: ", maximum(ESJD_BARKER[:, 2]))
-# println("maximum value of ESJD_gBARKER 2nd: ", maximum(ESJD_gBARKER[:, 2]))
+println("at ", argmax(ESJD_BARKER[:, 2]))
 # println("maximum value of ESJD_HMC 2nd: ", maximum(ESJD_HMC[:, 2]))
+# println("at ", argmax(ESJD_HMC[:, 2]))
+println("maximum value of ESJD_infMALA 2nd: ", maximum(ESJD_infMALA[:, 2]))
+println("at ", argmax(ESJD_infMALA[:, 2]))
+
+println("maximum value of ESJD_infmMALA 2nd: ", maximum(ESJD_infmMALA[:, 2]))
+println("at ", argmax(ESJD_infmMALA[:, 2]))
 
 # (2.38 ./ 2 .* exp.(range(-7.5, stop = 2, length = 50)))[15]
 # maximum([ESJD_MALA[:, 1]; ESJD_RW[:, 1]; ESJD_pCN[:, 1]; ESJD_BARKER[:, 1]])
@@ -421,8 +447,9 @@ println("maximum value of ESJD_BARKER 2nd: ", maximum(ESJD_BARKER[:, 2]))
 # PLOT ESJD OF FIRST COORDINATE AND MEDIAN ESJD OF OTHER COORDINATES
 
 #plot ESJD of first coordinate
-ylim = (exp(-15), maximum([ESJD_MALA[:, 1]; ESJD_RW[:, 1]; ESJD_pCN[:, 1]; ESJD_BARKER[:, 1]])+0.1)
-#ylim = (exp(-15), maximum([ESJD_MALA[:, 1]; ESJD_RW[:, 1]; ESJD_pCN[:, 1]; ESJD_BARKER[:, 1]; ESJD_HMC[:, 1]])+0.1)
+ylim = (exp(-15), maximum([ESJD_infmMALA[:, 1]; ESJD_infMALA[:, 1]; ESJD_MALA[:, 1]; ESJD_RW[:, 1]; ESJD_pCN[:, 1]; ESJD_BARKER[:, 1]])+0.1)
+# ylim = (exp(-15), maximum([ESJD_MALA[:, 1]; ESJD_RW[:, 1]; ESJD_pCN[:, 1]; ESJD_BARKER[:, 1]; ESJD_infMALA[:, 1]])+0.1)
+# ylim = (exp(-15), maximum([ESJD_MALA[:, 1]; ESJD_RW[:, 1]; ESJD_pCN[:, 1]; ESJD_BARKER[:, 1]])+0.1)
 
 p1 = plot(
     sigma_vec,
@@ -444,18 +471,20 @@ scatter!(p1, sigma_vec, ESJD_pCN[:, 1], label = "pCN", color = :green, marker = 
 plot!(p1, sigma_vec, ESJD_pCN[:, 1], label = nothing, color = :green)
 scatter!(p1, sigma_vec, ESJD_BARKER[:, 1], label = "Barker", color = :blue, marker = :utriangle)
 plot!(p1, sigma_vec, ESJD_BARKER[:, 1], label = nothing, color = :blue)
-# scatter!(p1, sigma_vec, ESJD_gBARKER[:, 1], label = "guided Barker", color = :orange, marker = :star5)
-#plot!(p1, sigma_vec, ESJD_gBARKER[:, 1], label = nothing, color = :orange)
-#scatter!(p1, sigma_vec, ESJD_HMC[:, 1], label = "HMC", color = :pink, marker = :dtriangle)
-#plot!(p1, sigma_vec, ESJD_HMC[:, 1], label = nothing, color = :pink)
+scatter!(p1, sigma_vec, ESJD_infMALA[:, 1], label = "infMALA", color = :purple, marker = :dtriangle)
+plot!(p1, sigma_vec, ESJD_infMALA[:, 1], label = nothing, color = :purple)
+
+scatter!(p1, sigma_vec, ESJD_infmMALA[:, 1], label = "infmMALA", color = :orange, marker = :xcross)
+plot!(p1, sigma_vec, ESJD_infmMALA[:, 1], label = nothing, color = :orange)
 title!(p1, "ESJD of coordinate 1")
 display(p1)
 savefig(p1, joinpath(data_save_directory, "sinusoid_MCMC_ESJD_1.png"))
 
 # PLOT ESJD OF FIRST COORDINATE AND MEDIAN ESJD OF OTHER COORDINATES
 #plot ESJD of second coordinate
- ylim = (exp(-9), maximum([ESJD_MALA[:, 2]; ESJD_RW[:, 2]; ESJD_pCN[:, 2]; ESJD_BARKER[:, 2]])+0.1)
-
+ ylim = (exp(-9), maximum([ESJD_infmMALA[:, 2]; ESJD_infMALA[:, 2]; ESJD_MALA[:, 2]; ESJD_RW[:, 2]; ESJD_pCN[:, 2]; ESJD_BARKER[:, 2]])+0.1)
+# ylim = (exp(-9), maximum([ESJD_MALA[:, 2]; ESJD_RW[:, 2]; ESJD_pCN[:, 2]; ESJD_BARKER[:, 2]])+0.1)
+# ylim = (exp(-9), maximum([ESJD_MALA[:, 2]; ESJD_RW[:, 2]; ESJD_pCN[:, 2]; ESJD_BARKER[:, 2]; ESJD_infMALA[:, 2]])+0.1)
 p2 = plot(
     sigma_vec,
     ESJD_MALA[:, 2],
@@ -476,38 +505,54 @@ scatter!(p2, sigma_vec, ESJD_pCN[:, 2], label = "pCN", color = :green, marker = 
 plot!(p2, sigma_vec, ESJD_pCN[:, 2], label = nothing, color = :green)
 scatter!(p2, sigma_vec, ESJD_BARKER[:, 2], label = "Barker", color = :blue, marker = :utriangle)
 plot!(p2, sigma_vec, ESJD_BARKER[:, 2], label = nothing, color = :blue)
-# scatter!(p2, sigma_vec, ESJD_gBARKER[:, 2], label = "guided Barker", color = :orange, marker = :star5)
-# plot!(p2, sigma_vec, ESJD_gBARKER[:, 2], label = nothing, color = :orange)
-# scatter!(p2, sigma_vec, ESJD_HMC[:, 2], label = "HMC", color = :pink, marker = :dtriangle)
-# plot!(p2, sigma_vec, ESJD_HMC[:, 2], label = nothing, color = :pink)
+scatter!(p2, sigma_vec, ESJD_infMALA[:, 2], label = "infMALA", color = :purple, marker = :dtriangle)
+plot!(p2, sigma_vec, ESJD_infMALA[:, 2], label = nothing, color = :purple)
+
+scatter!(p2, sigma_vec, ESJD_infmMALA[:, 2], label = "infmMALA", color = :orange, marker = :xcross)
+plot!(p2, sigma_vec, ESJD_infmMALA[:, 2], label = nothing, color = :orange)
 title!(p2, "ESJD of coordinate 2")
 display(p2)
 savefig(p2, joinpath(data_save_directory, "sinusoid_MCMC_ESJD_2.png"))
-ESJD =#
+=#
+
+
+
+
+
 
 
 
 # plotting convergences of the chain in terms of l_2 distance for diagonal covariance and MSE
 
 T = 10_000
-plots_id = 2:T
-num_repeats = 1
-methods = [MALASampling(), RWMHSampling(), pCNMHSampling(), BarkerSampling()]
-sigmas = [0.0099, 0.0099, 0.0099, 0.0099]
-colors = [:red, :black, :green, :blue]
+plots_id = 50:T
+num_repeats = 3
+methods = [MALASampling(), RWMHSampling(), pCNMHSampling(), BarkerSampling(), infMALASampling(), infmMALASampling()]
+# methods = [MALASampling(), RWMHSampling(), pCNMHSampling(), BarkerSampling(), infMALASampling()]
+# methods = [MALASampling(), RWMHSampling(), pCNMHSampling(), BarkerSampling()]
+sigmas = [0.08, 0.2, 0.05, 0.30, 0.03, 1.78]
+colors = [:red, :black, :green, :blue, :purple, :orange]
+
 
 samples_all = zeros(Float64, T, 2*length(methods))
 d_t_values_all = zeros(Float64, T, length(methods))
 frob_values_all = zeros(Float64, T, length(methods))
 mse_values_all = zeros(Float64, T, length(methods))
-msle_values_all = zeros(Float64, T, length(methods))
 
 for (j, method) in enumerate(methods)
     sum_samples = zeros(Float64, T, 2)
-
+    sum_time = 0
+    println(method)
     mcmc = MCMCWrapper(method, y_obs, prior, emulator_gp; init_params = init_sample)
     for i in 1:num_repeats
+        start_time = time()
         chain = MarkovChainMonteCarlo.sample(mcmc, T; rng = rng, stepsize = sigmas[j], discard_initial = 0)
+        end_time = time()
+        sum_time += end_time - start_time
+        #sum_time += (end_time - start_time).value
+
+        acc_prob = accept_ratio(chain)
+        println("acceptance probability: ", acc_prob)
         # sum_samples .+= chain.value[:, :, 1]
         posterior = MarkovChainMonteCarlo.get_posterior(mcmc, chain)
         # Back to constrained coordinates
@@ -524,6 +569,27 @@ for (j, method) in enumerate(methods)
     means = zeros(Float64, 2)
     covariances = zeros(Float64, 2, 2, T)
 
+    total_time = sum_time / num_repeats
+    println("Total MCMC sampling time: ", total_time, " seconds")
+    spiter = total_time / T
+    println("spiter: ", spiter)
+
+    ess_values = zeros(2)
+    for i in 1:2
+        sample_col = samples[:, i]
+        autocorrelations = autocor(sample_col)
+        ess_values[i] = T / (1 + 2 * sum(autocorrelations[2:end]))
+    end
+
+    println("Effective Sample Size (ESS): ", ess_values)
+    println("Min ESS: ", minimum(ess_values))
+    println("Median ESS: ", median(ess_values))
+    println("Max ESS: ", maximum(ess_values))
+
+    println("minESS/s: ", minimum(ess_values)/total_time)
+
+
+
     #= The true covariance matrix and means are picked from the 1 million runs of RWMH
     Iterations        = 2001:1:1002000
     Number of chains  = 1
@@ -537,11 +603,25 @@ for (j, method) in enumerate(methods)
     Vertical Shift mean: 6.380403018472636
     Vertical Shift std: 0.45794404967888214
     =#
-
-    Σ_true = [0.0808561649950171 0.007419140642478836;
-           0.007419140642478836 0.20971275263629424]
-
-    mean_true = [3.032846636107279, 6.380403018472636]
+    if method == RWMHSampling()
+        Σ_true = [0.08111312220685409 0.0070872820380775935; 0.0070872820380775935 0.20801995309226357]
+        mean_true = [3.032846636107279, 6.380403018472636]
+    elseif method == MALASampling()
+        Σ_true = [0.011792752948774696 0.005214769448424869; 0.005214769448424869 0.19318016467215526]
+        mean_true = [3.0324401446845766, 6.3803838027316555]
+    elseif method == BarkerSampling()
+    mean_true = [3.032325705604487, 6.377246255222122]
+    Σ_true = [0.04143921656498984 0.004029392837403583; 0.004029392837403583 0.1301224157816962]
+    elseif method == pCNMHSampling()
+        mean_true = [2.9051404199390904, 6.317950657159889]
+        Σ_true = [0.07312857716528383 0.0062324681523236525; 0.0062324681523236525 0.20568202731986848]
+    elseif method == infMALASampling()
+        mean_true = [3.024649446285538, 6.327553516157854]
+        Σ_true = [0.05057849228101103 0.005390999051864764; 0.005390999051864764 0.19996690820894686]
+    elseif method == infmMALASampling()
+        mean_true = [3.0045523662612155, 5.809916326572794]
+        Σ_true = [0.037266199443212335 0.003610215562420406; 0.003610215562420406 0.0997893705528214]
+    end
 
     for t in plots_id
         sample_subset = samples[1:t, :]
@@ -588,24 +668,30 @@ for (j, method) in enumerate(methods)
         #    println(sample_mean - mean_true')
         #end
     end
-
-
-    for t in plots_id
-        sample_mean = mean(samples[1:t, :], dims=1)
-        msle_values_all[t, j] = log(1 + mean((sample_mean[:] - mean_true).^2))
-    end
-
 end
 
-#= traceplots
-p_tp = plot(1:T, samples_all[:, 1:2], label="MALA",
-color=colors[1], xlabel="Iteration (t)", ylabel="d_t", title="samples", lw=2)
-plot!(1:T, samples_all[:, 3:4], label="RW", color=colors[2], lw=2)
-plot!(1:T, samples_all[:, 5:6].+1, label="pCN", color=colors[3], lw=2)
-plot!(1:T, samples_all[:, 7:8].+1, label="BARKER", color=colors[4], lw=2)
+# traceplots
+gr(size = (1000, 600))
+p_tp = plot(1:T, samples_all[:, 1], label="MALA",
+color=colors[1], xlabel="Iteration (t)", ylabel="sample", title="trace plots for 1st coordinate", lw=2, yticks=false)
+plot!(1:T, samples_all[:, 3].+1.5, label="RW", color=colors[2], lw=2, yticks=false)
+plot!(1:T, samples_all[:, 5].+3.0, label="pCN", color=colors[3], lw=2, yticks=false)
+plot!(1:T, samples_all[:, 7].+4.5, label="BARKER", color=colors[4], lw=2, yticks=false)
+plot!(1:T, samples_all[:, 9].+6.0, label="infMALA", color=colors[5], lw=2, yticks=false)
+plot!(1:T, samples_all[:, 11].+7.5, label="infmMALA", color=colors[6], lw=2, yticks=false)
 display(p_tp)
-savefig(p_tp, joinpath(data_save_directory, "sinusoid_MCMC_traceplots.png"))
-=#
+savefig(p_tp, joinpath(data_save_directory, "sinusoid_MCMC_traceplots_1.png"))
+
+p_tp = plot(1:T, samples_all[:, 2], label="MALA",
+color=colors[1], xlabel="Iteration (t)", ylabel="sample", title="trace plots for 2nd coordinate", lw=2, yticks=false)
+plot!(1:T, samples_all[:, 4].+1.5, label="RW", color=colors[2], lw=2, yticks=false)
+plot!(1:T, samples_all[:, 6].+3.0, label="pCN", color=colors[3], lw=2, yticks=false)
+plot!(1:T, samples_all[:, 8].+4.5, label="BARKER", color=colors[4], lw=2, yticks=false)
+plot!(1:T, samples_all[:, 10].+6.0, label="infMALA", color=colors[5], lw=2, yticks=false)
+plot!(1:T, samples_all[:, 12].+7.5, label="infmMALA", color=colors[6], lw=2, yticks=false)
+display(p_tp)
+savefig(p_tp, joinpath(data_save_directory, "sinusoid_MCMC_traceplots_2.png"))
+
 
 plot_d_t = plot(plots_id, d_t_values_all[plots_id, 1], label="d_t MALA",
 color=colors[1], xlabel="Iteration (t)", ylabel="d_t",
@@ -613,17 +699,21 @@ title="Convergence of d_t over iterations", lw=2)
 plot!(plots_id, d_t_values_all[plots_id, 2], label="d_t RW", color=colors[2], lw=2)
 plot!(plots_id, d_t_values_all[plots_id, 3], label="d_t pCN", color=colors[3], lw=2)
 plot!(plots_id, d_t_values_all[plots_id, 4], label="d_t BARKER", color=colors[4], lw=2)
+plot!(plots_id, d_t_values_all[plots_id, 5], label="d_t infMALA", color=colors[5], lw=2)
+plot!(plots_id, d_t_values_all[plots_id, 6], label="d_t infmMALA", color=colors[6], lw=2)
 display(plot_d_t)
-savefig(plot_d_t, joinpath(data_save_directory, "sinusoid_MCMC_cov_convergence.png"))
+savefig(plot_d_t, joinpath(data_save_directory, "sinusoid_MCMC_cov_conv.png"))
 
 plot_frob_norm = plot(plots_id, frob_values_all[plots_id, 1],
-label="Frobenius Norm MALA", color=colors[1], xlabel="Iteration (t)", ylabel="Frobenius Norm",
+label="Frobenius MALA", color=colors[1], xlabel="Iteration (t)", ylabel="Frobenius Norm",
 title="Convergence of Frobenius Norm over iterations", lw=2)
-plot!(plots_id, frob_values_all[plots_id, 2], label="Frobenius Norm RW", color=colors[2], lw=2)
-plot!(plots_id, frob_values_all[plots_id, 3], label="Frobenius Norm pCN", color=colors[3], lw=2)
-plot!(plots_id, frob_values_all[plots_id, 4], label="Frobenius Norm BARKER", color=colors[4], lw=2)
+plot!(plots_id, frob_values_all[plots_id, 2], label="Frobenius RW", color=colors[2], lw=2)
+plot!(plots_id, frob_values_all[plots_id, 3], label="Frobenius pCN", color=colors[3], lw=2)
+plot!(plots_id, frob_values_all[plots_id, 4], label="Frobenius BARKER", color=colors[4], lw=2)
+plot!(plots_id, frob_values_all[plots_id, 5], label="Frobenius infMALA", color=colors[5], lw=2)
+plot!(plots_id, frob_values_all[plots_id, 6], label="Frobenius infmMALA", color=colors[6], lw=2)
 display(plot_frob_norm)
-savefig(plot_frob_norm, joinpath(data_save_directory, "sinusoid_MCMC_frob_convergence.png"))
+savefig(plot_frob_norm, joinpath(data_save_directory, "sinusoid_MCMC_frob_conv.png"))
 
 plot_mse = plot(plots_id, mse_values_all[plots_id, 1], label="MSE MALA",
 color=colors[1], xlabel="Iteration (t)", ylabel="MSE",
@@ -631,10 +721,24 @@ title="Convergence of MSE over iterations", lw=2)
 plot!(plots_id, mse_values_all[plots_id, 2], label="MSE RW", color=colors[2], lw=2)
 plot!(plots_id, mse_values_all[plots_id, 3], label="MSE pCN", color=colors[3], lw=2)
 plot!(plots_id, mse_values_all[plots_id, 4], label="MSE BARKER", color=colors[4], lw=2)
+plot!(plots_id, mse_values_all[plots_id, 5], label="MSE infMALA", color=colors[5], lw=2)
+plot!(plots_id, mse_values_all[plots_id, 6], label="MSE infmMALA", color=colors[6], lw=2)
 display(plot_mse)
-savefig(plot_mse, joinpath(data_save_directory, "sinusoid_MCMC_mse_convergence.png"))
+savefig(plot_mse, joinpath(data_save_directory, "sinusoid_MCMC_mse_conv.png"))
 
+plot_mse = plot(plots_id, mse_values_all[plots_id, 1],
+xscale = :log10, yscale = :log10, label="MSE MALA",
+color=colors[1], xlabel="Iteration (t)", ylabel="MSE",
+title="(logscaled) Convergence of MSE over iterations", lw=2)
+plot!(plots_id, mse_values_all[plots_id, 2], label="MSE RW", color=colors[2], lw=2)
+plot!(plots_id, mse_values_all[plots_id, 3], label="MSE pCN", color=colors[3], lw=2)
+plot!(plots_id, mse_values_all[plots_id, 4], label="MSE BARKER", color=colors[4], lw=2)
+plot!(plots_id, mse_values_all[plots_id, 5], label="MSE infMALA", color=colors[5], lw=2)
+plot!(plots_id, mse_values_all[plots_id, 6], label="MSE infmMALA", color=colors[6], lw=2)
+display(plot_mse)
+savefig(plot_mse, joinpath(data_save_directory, "sinusoid_MCMC_logscale_mse_conv.png"))
 
+#=
 plot_mse2 = plot(plots_id, mse_values_all[plots_id, 1], label="MSE MALA",
 color=colors[1], xlabel="Iteration (t)", ylabel="MSE",
 title="Convergence of MSE over iterations", lw=2)
@@ -660,3 +764,4 @@ plot!(plots_id, msle_values_all[plots_id, 2], label="MSLE RW", color=colors[2], 
 plot!(plots_id, msle_values_all[plots_id, 4], label="MSLE BARKER", color=colors[4], lw=2)
 display(plot_msle)
 savefig(plot_msle, joinpath(data_save_directory, "sinusoid_MCMC_msle2_convergence.png"))
+=#

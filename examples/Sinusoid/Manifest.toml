@@ -2,7 +2,7 @@
 
 julia_version = "1.10.5"
 manifest_format = "2.0"
-project_hash = "ac06d23b9db21d76cd18cea7684bf0dce4954c94"
+project_hash = "1668dbe08664d5292a11266b4504794ba5744d25"
 
 [[deps.AMD]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse_jll"]
@@ -201,7 +201,7 @@ uuid = "83423d85-b0ee-5818-9007-b63ccbeb887a"
 version = "1.18.0+2"
 
 [[deps.CalibrateEmulateSample]]
-deps = ["AbstractGPs", "AbstractMCMC", "AdvancedMH", "Conda", "Distributions", "DocStringExtensions", "EnsembleKalmanProcesses", "ForwardDiff", "GaussianProcesses", "GaussianRandomFields", "KernelFunctions", "LinearAlgebra", "MCMCChains", "Pkg", "Printf", "ProgressBars", "PyCall", "Random", "RandomFeatures", "ScikitLearn", "StableRNGs", "Statistics", "StatsBase"]
+deps = ["AbstractGPs", "AbstractMCMC", "AdvancedMH", "BenchmarkTools", "Conda", "Dates", "Distributions", "DocStringExtensions", "EnsembleKalmanProcesses", "ForwardDiff", "GaussianProcesses", "GaussianRandomFields", "KernelFunctions", "LinearAlgebra", "MCMCChains", "MCMCDiagnosticTools", "Pkg", "Printf", "ProgressBars", "PyCall", "Random", "RandomFeatures", "ScikitLearn", "StableRNGs", "Statistics", "StatsBase"]
 path = "/Users/kotaokuda/CalibrateEmulateSample.jl"
 uuid = "95e48a1f-0bec-4818-9538-3db4340308e3"
 version = "0.5.3"

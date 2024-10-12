@@ -49,15 +49,18 @@ function main()
     dim = 2
     N, L = 80, 1.0
     pts_per_dim = LinRange(0, L, N)
-    obs_ΔN = 20 # output observations: (N / obs_ΔN - 1)^2
+    obs_ΔN = 13 # output observations: (N / obs_ΔN - 1)^2
+    #20, 16, 13, 11, 10, 8,  7,   6,   5  of obs_ΔN correspond to
+
+    # 9, 16, 25, 36, 49, 81, 100, 144, 225
 
     # To provide a simple test case, we assume that the true function parameter is a particular sample from the function space we set up to define our prior.
     # More precisely we choose a value of the truth that doesnt have a vanishingly small probability under the prior defined by a probability distribution over functions; here taken as a family of Gaussian Random Fields (GRF).
     # The function distribution is characterized by a covariance function - here a Matern kernel which assumes a level of smoothness over the samples from the distribution.
     # We define an appropriate expansion of this distribution, here based on the Karhunen-Loeve expansion (similar to an eigenvalue-eigenfunction expansion) that is truncated to a finite number of terms, known as the degrees of freedom (`dofs`). The `dofs` define the effective dimension of the learning problem, decoupled from the spatial discretization. Explicitly, larger `dofs` may be required to represent multiscale functions, but come at an increased dimension of the parameter space and therefore a typical increase in cost and difficulty of the learning problem.
 
-    smoothness = 1.0
-    corr_length = 0.25
+    smoothness = 0.1
+    corr_length = 1.0
     dofs = 10 # input dimensions
 
     grf = GRF.GaussianRandomField(
@@ -78,7 +81,8 @@ function main()
     ) # the fully constrained parameter distribution
 
     # Now we have a function distribution, we sample a reasonably high-probability value from this distribution as a true value (here all degrees of freedom set with `u_{\mathrm{true}} = -0.5`). We use the EKP transform function to build the corresponding instance of the ``\kappa_{\mathrm{true}}``.
-    u_true = -1.5 * ones(dofs, 1) # the truth parameter
+    # u_true = -1.5 * ones(dofs, 1)
+    u_true = sign.(randn(dofs, 1)) # the truth parameter
     println("True coefficients: ")
     println(u_true)
     κ_true = transform_unconstrained_to_constrained(pd, u_true) # builds and constrains the function.
@@ -90,7 +94,7 @@ function main()
     println(" Number of observation points: $(darcy.N_y)")
     h_2d_true = solve_Darcy_2D(darcy, κ_true)
     y_noiseless = compute_obs(darcy, h_2d_true)
-    obs_noise_cov = 0.2^2 * I(length(y_noiseless)) * (maximum(y_noiseless) - minimum(y_noiseless))
+    obs_noise_cov = 0.25^2 * I(length(y_noiseless)) * (maximum(y_noiseless) - minimum(y_noiseless))
     truth_sample = vec(y_noiseless + rand(rng, MvNormal(zeros(length(y_noiseless)), obs_noise_cov)))
 
 
